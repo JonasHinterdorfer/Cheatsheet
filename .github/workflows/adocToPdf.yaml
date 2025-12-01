@@ -6,7 +6,11 @@ on:
       - main
     paths:
       - 'cheatsheet.adoc'
+      - '.github/workflows/adocToPdf.yaml'
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   convert-to-pdf:
@@ -15,6 +19,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
         
       - name: Install AsciiDoctor and dependencies
         run: |
