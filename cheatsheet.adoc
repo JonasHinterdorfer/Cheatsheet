@@ -864,9 +864,9 @@ builder.Services.AddTransient<IYourService, YourService>();
 builder.Services.AddTransient<YourService>();
 ----
 
-## 2.6. Unit Tests
+=== Unit Tests
 
-### 2.6.1. XUnit
+==== XUnit
 
 *Beschreibung:*
 XUnit ist ein populäres Testing-Framework für .NET. Es ermöglicht das Schreiben von Unit-Tests, Integrationstests und End-to-End-Tests. Tests werden in separaten Projekten organisiert und können automatisiert ausgeführt werden.
@@ -905,7 +905,7 @@ public class YourServiceTests
 }
 ----
 
-### 2.6.2. NUnit
+==== NUnit
 
 *Beschreibung:*
 NUnit ist ein weiteres weit verbreitetes Testing-Framework für .NET. Es bietet ähnliche Funktionalitäten wie XUnit, mit einer etwas anderen Syntax und Struktur. NUnit unterstützt auch Data-Driven Tests und bietet umfangreiche Assertions.
@@ -944,7 +944,7 @@ public class YourServiceTests
 }
 ----
 
-### 2.6.3. FluentAssertions
+==== FluentAssertions
 
 *Beschreibung:*
 FluentAssertions ist eine Erweiterung für Testing-Frameworks wie XUnit und NUnit, die eine lesbare und ausdrucksstarke Syntax für Assertions bietet. Es verbessert die Klarheit der Tests und erleichtert das Debugging.
@@ -983,7 +983,7 @@ public class YourServiceTests
 }
 ----
 
-### 2.6.4. Moq
+==== Moq
 
 *Beschreibung:*
 Moq ist ein Mocking-Framework für .NET, das es ermöglicht, Abhängigkeiten zu mocken und zu stubben. Ideal für Unit-Tests, um isolierte Testszenarien zu erstellen.
@@ -1028,7 +1028,7 @@ public class YourServiceTests
 }
 ----
 
-### 2.6.5. Testen von Minimal APIs
+==== Testen von Minimal APIs
 
 *Beschreibung:*
 Minimal APIs können mit dem `WebApplicationFactory<TEntryPoint>` aus dem `Microsoft.AspNetCore.Mvc.Testing` Paket getestet werden. Dies ermöglicht das Starten der API in einem Test-Host und das Senden von HTTP-Requests.
