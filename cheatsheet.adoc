@@ -31,8 +31,9 @@
 Der HTTP-Interceptor ist eine Middleware-Komponente, die automatisch bei *jedem* ausgehenden HTTP-Request ausgeführt wird. Er fügt den JWT-Token aus dem SessionStorage als Bearer-Token in den Authorization-Header ein, sodass authentifizierte API-Anfragen möglich sind.
 
 *Wichtige Hinweise:*
-- SessionStorage wird beim Schließen des Browser-Tabs gelöscht - für persistente Anmeldung localStorage verwenden
-- Der Interceptor muss in `app.config.ts` unter `provideHttpClient(withInterceptors([authInterceptor]))` registriert werden
+
+* SessionStorage wird beim Schließen des Browser-Tabs gelöscht - für persistente Anmeldung localStorage verwenden
+* Der Interceptor muss in `app.config.ts` unter `provideHttpClient(withInterceptors([authInterceptor]))` registriert werden
 
 [source,typescript]
 ----
@@ -56,8 +57,9 @@ export const authInterceptor: HttpInterceptorFn = (request, next) => {
 Ein Route Guard, der den Zugriff auf geschützte Routen kontrolliert. Er prüft vor dem Laden einer Route, ob ein gültiger JWT-Token im SessionStorage vorhanden ist. Ist dies nicht der Fall, wird der User automatisch zur Login-Seite umgeleitet.
 
 *Wichtige Hinweise:*
-- Muss in den `app.routes.ts` bei den jeweiligen Routen mit `canActivate: [AuthGuard]` aktiviert werden
-- Der Guard muss in `app.config.ts` mit `provideRouter(routes)` registriert werden
+
+* Muss in den `app.routes.ts` bei den jeweiligen Routen mit `canActivate: [AuthGuard]` aktiviert werden
+* Der Guard muss in `app.config.ts` mit `provideRouter(routes)` registriert werden
 
 [source,typescript]
 ----
@@ -89,14 +91,15 @@ export class AuthGuard implements CanActivate {
 Custom Validators für Template-Driven Forms. Diese Directive validiert Benutzereingaben *synchron* und gibt sofortiges Feedback. Ideal für einfache Validierungen wie Zahlenbereich, Format-Checks oder Pflichtfelder.
 
 *Wichtige Hinweise:*
-- Muss im `imports` Array der Komponente registriert werden (Standalone Components)
-- Bei NgModule: Im `declarations` Array des Moduls registrieren
-- Die Directive muss das `Validator` Interface implementieren
-- Rückgabe `null` bedeutet valide, jedes andere Objekt ist ein Fehler
-- `ValidationErrors` Objekt kann mehrere Fehler enthalten: `{ invalid: true, outOfRange: true }`
-- Prüfe immer auf leere Werte (`!control.value || control.value === ""`) vor der Validierung
-- Verwende sprechende Error-Keys: `{ hourOutOfRange: true }` statt `{ invalid: true }`
-- Zeige Fehlermeldungen mit `@if(hourInput.errors?.['hourOutOfRange']) {<div>...</div>}`
+
+* Muss im `imports` Array der Komponente registriert werden (Standalone Components)
+* Bei NgModule: Im `declarations` Array des Moduls registrieren
+* Die Directive muss das `Validator` Interface implementieren
+* Rückgabe `null` bedeutet valide, jedes andere Objekt ist ein Fehler
+* `ValidationErrors` Objekt kann mehrere Fehler enthalten: `{ invalid: true, outOfRange: true }`
+* Prüfe immer auf leere Werte (`!control.value || control.value === ""`) vor der Validierung
+* Verwende sprechende Error-Keys: `{ hourOutOfRange: true }` statt `{ invalid: true }`
+* Zeige Fehlermeldungen mit `@if(hourInput.errors?.['hourOutOfRange']) {<div>...</div>}`
 
 [source,typescript]
 ----
@@ -122,17 +125,19 @@ export class ValidateHour implements Validator {
 Async Validators für komplexe Validierungen die eine Backend-Abfrage erfordern, z.B. Prüfung ob Username bereits existiert, ob eine ID gültig ist, oder ob ein Wert in der Datenbank vorhanden ist. Die Validierung läuft asynchron und blockiert das UI nicht.
 
 *Wichtige Hinweise:*
-- Muss `AsyncValidator` Interface implementieren (nicht `Validator`!)
-- Provider-Konfiguration mit `NG_ASYNC_VALIDATORS` ist zwingend erforderlich
-- `multi: true` erlaubt mehrere Async Validators auf einem Input
-- Rückgabe muss `Observable<ValidationErrors | null>` sein
-- Während der Validierung hat das Control den Status `PENDING`
+
+* Muss `AsyncValidator` Interface implementieren (nicht `Validator`!)
+* Provider-Konfiguration mit `NG_ASYNC_VALIDATORS` ist zwingend erforderlich
+* `multi: true` erlaubt mehrere Async Validators auf einem Input
+* Rückgabe muss `Observable<ValidationErrors | null>` sein
+* Während der Validierung hat das Control den Status `PENDING`
 
 *Best Practice:*
-- Verwende `debounceTime(300)` um Requests zu verzögern bis User fertig getippt hat
-- Zeige Loading-Spinner während `control.pending === true`
-- Cache API-Responses um unnötige Requests zu vermeiden
-- Kombiniere mit synchroner Validierung: erst Format prüfen, dann Backend-Call
+
+* Verwende `debounceTime(300)` um Requests zu verzögern bis User fertig getippt hat
+* Zeige Loading-Spinner während `control.pending === true`
+* Cache API-Responses um unnötige Requests zu vermeiden
+* Kombiniere mit synchroner Validierung: erst Format prüfen, dann Backend-Call
 
 [source,typescript]
 ----
@@ -167,9 +172,10 @@ export class RomanCheck implements AsyncValidator {
 Die zentrale Router-Konfiguration definiert alle verfügbaren Routen der Applikation. Jede Route mappt einen URL-Pfad auf eine Component und kann optional Guards, Resolver oder weitere Konfigurationen enthalten.
 
 *Wichtige Hinweise:*
-- Reihenfolge der Routes ist wichtig! Die erste passende Route wird verwendet
-- `pathMatch: 'full'` bei Redirects verwenden, sonst matched jede URL die mit dem Pfad beginnt
-- Optionale Wildcard-Route `{ path: '**', component: NotFoundComponent }` als *letzte* Route, die als Fallback dient
+
+* Reihenfolge der Routes ist wichtig! Die erste passende Route wird verwendet
+* `pathMatch: 'full'` bei Redirects verwenden, sonst matched jede URL die mit dem Pfad beginnt
+* Optionale Wildcard-Route `{ path: '**', component: NotFoundComponent }` als *letzte* Route, die als Fallback dient
 
 [source,typescript]
 ----
@@ -187,9 +193,10 @@ export const routes: Routes = [
 Programmatische Navigation ermöglicht das Wechseln zwischen Routes im TypeScript-Code, z.B. nach erfolgreicher Formular-Submission, Login oder bei Button-Clicks. Der Router-Service stellt verschiedene Methoden für Navigation bereit.
 
 *Wichtige Hinweise:*
-- `router.navigate(['/path'])` ist relativ zum Root (absoluter Pfad)
-- `router.navigate(['./path'], {relativeTo: route})` ist relativ zur aktuellen Route
-- Query Params separat mit Options-Object übergeben
+
+* `router.navigate(['/path'])` ist relativ zum Root (absoluter Pfad)
+* `router.navigate(['./path'], {relativeTo: route})` ist relativ zur aktuellen Route
+* Query Params separat mit Options-Object übergeben
 
 [source,typescript]
 ----
@@ -204,7 +211,8 @@ this.router.navigate(["/overview"], {
 Path Parameter (Route Parameters) sind dynamische Segmente in der URL, z.B. `/details/42` wobei `42` die ID ist. Sie werden in der Route-Konfiguration mit `:paramName` definiert und ermöglichen das Laden von spezifischen Ressourcen.
 
 *Wichtige Hinweise:*
-- Parameter sind *immer* strings! Konvertierung zu number erforderlich: `parseInt(id)`
+
+* Parameter sind *immer* strings! Konvertierung zu number erforderlich: `parseInt(id)`
 
 [source,typescript]
 ----
@@ -227,9 +235,10 @@ const parsed = parseInt(id || "");
 Query Parameter sind optionale Parameter die nach dem `?` in der URL stehen, z.B. `/search?term=angular&page=2`. Sie werden für Filterung, Sortierung, Pagination oder optionale Konfiguration verwendet und überleben Route-Changes.
 
 *Wichtige Hinweise:*
-- Query Params sind *immer* strings oder string arrays (`?id=1&id=2`)
-- `snapshot.paramMap.get("id")` liefert Path Params, nicht Query Params!
-- Für Query Params: `snapshot.queryParamMap.get("searchTerm")` verwenden
+
+* Query Params sind *immer* strings oder string arrays (`?id=1&id=2`)
+* `snapshot.paramMap.get("id")` liefert Path Params, nicht Query Params!
+* Für Query Params: `snapshot.queryParamMap.get("searchTerm")` verwenden
 
 [source,typescript]
 ----
@@ -251,9 +260,10 @@ const parsed = parseInt(id || "");
 Reactive Forms (Model-Driven) sind die empfohlene Methode für komplexe Formulare in Angular. Das Form-Model wird im TypeScript-Code definiert und das Template bindet sich daran. Bietet volle Kontrolle, Testbarkeit und Type-Safety.
 
 *Wichtige Hinweise:*
-- `ReactiveFormsModule` muss importiert werden
-- `[formGroup]` Directive auf `<form>` Element binden
-- Verwende `FormBuilder` Service für sauberere Syntax
+
+* `ReactiveFormsModule` muss importiert werden
+* `[formGroup]` Directive auf `<form>` Element binden
+* Verwende `FormBuilder` Service für sauberere Syntax
 
 [source,typescript]
 ----
@@ -294,8 +304,9 @@ export class LoginComponent {
 Template Driven Forms sind einfacher zu implementieren und ähneln AngularJS Formularen. Die Form-Logik liegt hauptsächlich im Template mit Directives. Gut geeignet für einfache Formulare mit wenigen Feldern.
 
 *Wichtige Hinweise:*
-- `FormsModule` muss importiert werden
-- `[(ngModel)]` bindet an Component-Property (Two-Way Binding)
+
+* `FormsModule` muss importiert werden
+* `[(ngModel)]` bindet an Component-Property (Two-Way Binding)
 
 [source,typescript]
 ----
@@ -339,9 +350,10 @@ export class LoginComponent {
 Signals sind Angulars neues Reaktivitäts-Primitiv (ab v16). Sie ermöglichen Fine-Grained Reactivity, Change Detection Optimierung und bessere Performance. Ein Signal ist ein Wrapper um einen Wert der automatisch Dependencies trackt.
 
 *Wichtige Hinweise:*
-- `signal()` erstellt writable Signal, `computed()` für abgeleitete Werte
-- Signals müssen mit `()` aufgerufen werden um den Wert zu lesen: `count()`
-- Zum Schreiben: `count.set(5)` oder `count.update(v => v + 1)`
+
+* `signal()` erstellt writable Signal, `computed()` für abgeleitete Werte
+* Signals müssen mit `()` aufgerufen werden um den Wert zu lesen: `count()`
+* Zum Schreiben: `count.set(5)` oder `count.update(v => v + 1)`
 
 ==== Models
 
@@ -349,9 +361,10 @@ Signals sind Angulars neues Reaktivitäts-Primitiv (ab v16). Sie ermöglichen Fi
 Two-Way Binding von Signals in Standalone Components. Das `model<T>()` Decorator erstellt ein Signal-Property das automatisch mit dem Template synchronisiert wird. Änderungen im Template aktualisieren das Signal und umgekehrt.
 
 *Wichtige Hinweise:*
-- `model<T>(defaultValue)` initialisiert das Signal mit einem Standardwert
-- Im Template mit `[(ngModel)]="propertyName"` binden
-- Änderungen im Template aktualisieren automatisch das Signal
+
+* `model<T>(defaultValue)` initialisiert das Signal mit einem Standardwert
+* Im Template mit `[(ngModel)]="propertyName"` binden
+* Änderungen im Template aktualisieren automatisch das Signal
 
 [source,typescript]
 ----
@@ -394,9 +407,10 @@ export class ParentComponent {
 Signal-basierte Inputs ersetzen das traditionelle `@Input()` Decorator und bieten Type-Safety, automatische Change Detection und bessere Integration mit dem Signal-System. Parent Components können reaktiv Daten an Child Components übergeben.
 
 *Wichtige Hinweise:*
-- `input.required<T>()` wirft Compile-Error wenn Property nicht gesetzt wird
-- `input<T>(defaultValue)` für optionale Inputs mit Fallback-Wert
-- Signal Inputs sind *readonly* - Child kann Wert nicht direkt ändern
+
+* `input.required<T>()` wirft Compile-Error wenn Property nicht gesetzt wird
+* `input<T>(defaultValue)` für optionale Inputs mit Fallback-Wert
+* Signal Inputs sind *readonly* - Child kann Wert nicht direkt ändern
 
 [source,typescript]
 ----
@@ -430,9 +444,10 @@ export class ParentComponent {
 Signal-basierte Outputs ersetzen `@Output()` EventEmitter und ermöglichen typsichere Event-Kommunikation von Child zu Parent Component. Events werden mit `output<T>()` definiert und können mit oder ohne Daten emittet werden.
 
 *Wichtige Hinweise:*
-- `output<T>()` erstellt einen Event-Emitter, *kein* Signal!
-- Events werden mit `.emit(value)` ausgelöst (wie bei EventEmitter)
-- Parent muss Event im Template mit `(eventName)="handler($event)"` abonnieren
+
+* `output<T>()` erstellt einen Event-Emitter, *kein* Signal!
+* Events werden mit `.emit(value)` ausgelöst (wie bei EventEmitter)
+* Parent muss Event im Template mit `(eventName)="handler($event)"` abonnieren
 
 [source,typescript]
 ----
@@ -483,9 +498,10 @@ export class ParentComponent {
 Der HttpClient-Service ist Angulars zentrale API für HTTP-Kommunikation. Er bietet eine Observable-basierte API für REST-Calls, automatische JSON-Parsing, Request/Response-Interceptors und Type-Safety durch Generics.
 
 *Wichtige Hinweise:*
-- `HttpClientModule` muss in `app.config.ts` mit `provideHttpClient()` registriert werden
-- Observables sind lazy - ohne `.subscribe()` wird kein Request gesendet
-- Error Handling mit `.pipe(catchError())` implementieren
+
+* `HttpClientModule` muss in `app.config.ts` mit `provideHttpClient()` registriert werden
+* Observables sind lazy - ohne `.subscribe()` wird kein Request gesendet
+* Error Handling mit `.pipe(catchError())` implementieren
 
 [source,typescript]
 ----
@@ -588,8 +604,9 @@ deleteGame(id: number) {
 Die `@for` Direktive ermöglicht das Iterieren über Arrays oder Collections im Template. Sie ist eine Alternative zu `*ngFor` und bietet eine klarere Syntax für das Durchlaufen von Listen.
 
 *Wichtige Hinweise:*
-- Verwende `@for (item of items; track item)` um über ein Array zu iterieren
-- `track item` hilft Angular, Elemente effizient zu rendern und zu aktualisieren
+
+* Verwende `@for (item of items; track item)` um über ein Array zu iterieren
+* `track item` hilft Angular, Elemente effizient zu rendern und zu aktualisieren
 
 [source,html]
 ----
@@ -604,8 +621,9 @@ Die `@for` Direktive ermöglicht das Iterieren über Arrays oder Collections im 
 Die `@if` Direktive ermöglicht bedingtes Rendern von Template-Abschnitten basierend auf einem boolean Ausdruck. Sie ist eine Alternative zu `*ngIf` und bietet eine klarere Syntax für bedingte Logik.
 
 *Wichtige Hinweise:*
-- Verwende `@if (condition) { ... }` um einen Block nur bei wahrer Bedingung zu rendern
-- Optional kann ein `@else { ... }` Block hinzugefügt werden
+
+* Verwende `@if (condition) { ... }` um einen Block nur bei wahrer Bedingung zu rendern
+* Optional kann ein `@else { ... }` Block hinzugefügt werden
 
 [source,html]
 ----
@@ -654,10 +672,11 @@ Die `@if` Direktive ermöglicht bedingtes Rendern von Template-Abschnitten basie
 Vollständiges Beispiel eines Reactive Forms zur Erstellung/Bearbeitung von Entities. Zeigt Form-Validierung, Error-Handling, und Submission an Backend-API. Kann sowohl für Create als auch Update verwendet werden.
 
 *Wichtige Hinweise:*
-- Verwende `FormBuilder` für saubere Form-Initialisierung
-- `patchValue()` zum Befüllen des Forms bei Edit-Mode
-- `markAllAsTouched()` zeigt alle Validation-Errors beim Submit
-- Disabled-State des Submit-Buttons verhindert ungültige Submissions
+
+* Verwende `FormBuilder` für saubere Form-Initialisierung
+* `patchValue()` zum Befüllen des Forms bei Edit-Mode
+* `markAllAsTouched()` zeigt alle Validation-Errors beim Submit
+* Disabled-State des Submit-Buttons verhindert ungültige Submissions
 
 [source,typescript]
 ----
@@ -897,10 +916,11 @@ export class DeviceFormComponent implements OnInit {
 Vollständige Detail-Ansicht die ein einzelnes Objekt über ID vom Backend lädt und anzeigt. Zeigt Loading-State, Error-Handling, und Navigation. Kann erweitert werden mit Edit/Delete Funktionen.
 
 *Wichtige Hinweise:*
-- Route-Parameter mit `ActivatedRoute.snapshot.paramMap.get('id')` auslesen
-- Loading-State während API-Call anzeigen (`isLoading` Flag)
-- Error-Handling für 404 Not Found und andere Fehler
-- Navigation zurück zur Übersicht mit `router.navigate()`
+
+* Route-Parameter mit `ActivatedRoute.snapshot.paramMap.get('id')` auslesen
+* Loading-State während API-Call anzeigen (`isLoading` Flag)
+* Error-Handling für 404 Not Found und andere Fehler
+* Navigation zurück zur Übersicht mit `router.navigate()`
 
 [source,typescript]
 ----
@@ -1149,11 +1169,12 @@ export class DeviceDetailsComponent implements OnInit {
 Dependency Injection Container registriert Services die dann automatisch in Controllers/Endpoints injiziert werden können. Ermöglicht loose coupling, bessere Testbarkeit und zentrale Konfiguration.
 
 *Wichtige Hinweise:*
-- Services müssen *vor* `var app = builder.Build()` registriert werden
-- `AddTransient`: neue Instanz bei jeder Injection (stateless Services)
-- `AddScoped`: eine Instanz pro HTTP-Request (z.B. DbContext)
-- `AddSingleton`: eine Instanz für gesamte App-Lifetime (Caching, Configuration)
-- Interface-Registration (`<IService, Service>`) erlaubt Mocking in Tests
+
+* Services müssen *vor* `var app = builder.Build()` registriert werden
+* `AddTransient`: neue Instanz bei jeder Injection (stateless Services)
+* `AddScoped`: eine Instanz pro HTTP-Request (z.B. DbContext)
+* `AddSingleton`: eine Instanz für gesamte App-Lifetime (Caching, Configuration)
+* Interface-Registration (`<IService, Service>`) erlaubt Mocking in Tests
 
 Füge Service in Backend hinzu:
 
@@ -1175,7 +1196,8 @@ builder.Services.AddTransient<MessageService>();
 Swagger/OpenAPI UI generiert automatisch interaktive API-Dokumentation. Endpoints können direkt getestet werden, Request/Response Schemas werden visualisiert. Essential für Frontend-Entwickler und API-Testing.
 
 *Wichtige Hinweise:*
-- `AddEndpointsApiExplorer()` muss *vor* `AddSwaggerGen()` stehen
+
+* `AddEndpointsApiExplorer()` muss *vor* `AddSwaggerGen()` stehen
 
 [source,csharp]
 ----
@@ -1211,8 +1233,9 @@ app.UseSwaggerUI();
 CORS (Cross-Origin Resource Sharing) erlaubt Browser Requests von anderen Domains (z.B. Frontend auf localhost:4200 zu API auf localhost:5000). Ohne CORS blockiert Browser die Requests aus Sicherheitsgründen.
 
 *Wichtige Hinweise:*
-- CORS-Policy muss *vor* `app.Build()` registriert werden
-- `UseCors()` muss *vor* `UseAuthorization()` stehen (Middleware-Reihenfolge!)
+
+* CORS-Policy muss *vor* `app.Build()` registriert werden
+* `UseCors()` muss *vor* `UseAuthorization()` stehen (Middleware-Reihenfolge!)
 
 [source,csharp]
 ----
@@ -1351,7 +1374,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 Services kapseln Business-Logic und werden via Dependency Injection in Endpoints/Controller injiziert. Ermöglicht Separation of Concerns, bessere Testbarkeit und Code-Reuse.
 
 *Wichtige Hinweise:*
-- Services müssen in `Program.cs` registriert werden (siehe 2.1/2.5.3)
+
+* Services müssen in `Program.cs` registriert werden (siehe 2.1/2.5.3)
 
 ==== Service Interface
 
@@ -1394,8 +1418,9 @@ builder.Services.AddTransient<YourService>();
 XUnit ist ein populäres Testing-Framework für .NET. Es ermöglicht das Schreiben von Unit-Tests, Integrationstests und End-to-End-Tests. Tests werden in separaten Projekten organisiert und können automatisiert ausgeführt werden.
 
 *Wichtige Hinweise:*
-- Test-Projekt muss `xunit` und `xunit.runner.visualstudio` NuGet-Pakete referenzieren
-- Test-Klassen müssen mit `[Fact]` oder `[Theory]` dekoriert werden
+
+* Test-Projekt muss `xunit` und `xunit.runner.visualstudio` NuGet-Pakete referenzieren
+* Test-Klassen müssen mit `[Fact]` oder `[Theory]` dekoriert werden
 
 [source,csharp]
 ----
@@ -1433,7 +1458,8 @@ public class YourServiceTests
 NUnit ist ein weiteres weit verbreitetes Testing-Framework für .NET. Es bietet ähnliche Funktionalitäten wie XUnit, mit einer etwas anderen Syntax und Struktur. NUnit unterstützt auch Data-Driven Tests und bietet umfangreiche Assertions.
 
 *Wichtige Hinweise:*
-- Test-Projekt muss `NUnit` und `NUnit3TestAdapter` NuGet-Pakete referenzieren
+
+* Test-Projekt muss `NUnit` und `NUnit3TestAdapter` NuGet-Pakete referenzieren
 
 [source,csharp]
 ----
@@ -1472,7 +1498,8 @@ public class YourServiceTests
 FluentAssertions ist eine Erweiterung für Testing-Frameworks wie XUnit und NUnit, die eine lesbare und ausdrucksstarke Syntax für Assertions bietet. Es verbessert die Klarheit der Tests und erleichtert das Debugging.
 
 *Wichtige Hinweise:*
-- Test-Projekt muss `FluentAssertions` NuGet-Paket referenzieren
+
+* Test-Projekt muss `FluentAssertions` NuGet-Paket referenzieren
 
 [source,csharp]
 ----
@@ -1511,8 +1538,9 @@ public class YourServiceTests
 Moq ist ein Mocking-Framework für .NET, das es ermöglicht, Abhängigkeiten zu mocken und zu stubben. Ideal für Unit-Tests, um isolierte Testszenarien zu erstellen.
 
 *Wichtige Hinweise:*
-- Test-Projekt muss `Moq` NuGet-Paket referenzieren
-- Verwende `Mock<T>` um Mocks zu erstellen und Verhalten zu konfigurieren
+
+* Test-Projekt muss `Moq` NuGet-Paket referenzieren
+* Verwende `Mock<T>` um Mocks zu erstellen und Verhalten zu konfigurieren
 
 [source,csharp]
 ----
@@ -1556,8 +1584,10 @@ public class YourServiceTests
 Minimal APIs können mit dem `WebApplicationFactory<TEntryPoint>` aus dem `Microsoft.AspNetCore.Mvc.Testing` Paket getestet werden. Dies ermöglicht das Starten der API in einem Test-Host und das Senden von HTTP-Requests.
 
 *Wichtige Hinweise:*
-- Test-Projekt muss `Microsoft.AspNetCore.Mvc.Testing` NuGet-Paket referenzieren
-- Verwende `HttpClient` um Requests an die API zu senden
+
+* Test-Projekt muss `Microsoft.AspNetCore.Mvc.Testing` NuGet-Paket referenzieren
+* Verwende `HttpClient` um Requests an die API zu senden
+
 [source,csharp]
 ----
 using Microsoft.AspNetCore.Mvc.Testing;
