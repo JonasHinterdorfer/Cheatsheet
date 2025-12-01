@@ -1,8 +1,31 @@
-= 1. Frontend
+= Angular & .NET Cheatsheet 
+{docdate}
+:doctype: book
+:encoding: utf-8
+:lang: en
+:toc: left
+:toclevels: 3
+:sectanchors: 
+:sectnums:
+:sectnumlevels: 3
+:xrefstyle: short
+:source-highlighter: rouge
+:rouge-style: github
+:icons: font
+:stem: latexmath
+:experimental:
+:pdf-theme: school
+:pdf-themesdir: ~/.asciidoctor/themes
+:allow-uri-read:
+:sectlinks:
+:!chapter-signifier:
+:imagesdir: resources
 
-== 1.1. Authentication
+== Frontend
 
-=== 1.1.1. Interceptor
+=== Authentication
+
+==== Interceptor
 
 *Beschreibung:*   
 Der HTTP-Interceptor ist eine Middleware-Komponente, die automatisch bei *jedem* ausgehenden HTTP-Request ausgeführt wird. Er fügt den JWT-Token aus dem SessionStorage als Bearer-Token in den Authorization-Header ein, sodass authentifizierte API-Anfragen möglich sind.
@@ -27,7 +50,7 @@ export const authInterceptor: HttpInterceptorFn = (request, next) => {
 }
 ----
 
-=== 1.1.2. Auth Guard
+==== Auth Guard
 
 *Beschreibung:*  
 Ein Route Guard, der den Zugriff auf geschützte Routen kontrolliert. Er prüft vor dem Laden einer Route, ob ein gültiger JWT-Token im SessionStorage vorhanden ist. Ist dies nicht der Fall, wird der User automatisch zur Login-Seite umgeleitet.
@@ -58,9 +81,9 @@ export class AuthGuard implements CanActivate {
 }
 ----
 
-== 1.2. Directives
+=== Directives
 
-=== 1.2.1. Filter Directives
+==== Filter Directives
 
 *Beschreibung:*  
 Custom Validators für Template-Driven Forms. Diese Directive validiert Benutzereingaben *synchron* und gibt sofortiges Feedback. Ideal für einfache Validierungen wie Zahlenbereich, Format-Checks oder Pflichtfelder.
@@ -93,7 +116,7 @@ export class ValidateHour implements Validator {
 }
 ----
 
-=== 1.2.2. Async Directives
+==== Async Directives
 
 *Beschreibung:*  
 Async Validators für komplexe Validierungen die eine Backend-Abfrage erfordern, z.B. Prüfung ob Username bereits existiert, ob eine ID gültig ist, oder ob ein Wert in der Datenbank vorhanden ist. Die Validierung läuft asynchron und blockiert das UI nicht.
@@ -136,9 +159,9 @@ export class RomanCheck implements AsyncValidator {
 }
 ----
 
-== 1.3. Routing
+=== Routing
 
-=== 1.3.1. Routes
+==== Routes
 
 *Beschreibung:*  
 Die zentrale Router-Konfiguration definiert alle verfügbaren Routen der Applikation. Jede Route mappt einen URL-Pfad auf eine Component und kann optional Guards, Resolver oder weitere Konfigurationen enthalten.
@@ -158,7 +181,7 @@ export const routes: Routes = [
 ];
 ----
 
-=== 1.3.2. Navigation (Programmatisch)
+==== Navigation (Programmatisch)
 
 *Beschreibung:*  
 Programmatische Navigation ermöglicht das Wechseln zwischen Routes im TypeScript-Code, z.B. nach erfolgreicher Formular-Submission, Login oder bei Button-Clicks. Der Router-Service stellt verschiedene Methoden für Navigation bereit.
@@ -175,7 +198,7 @@ this.router.navigate(["/overview"], {
 });
 ----
 
-=== 1.3.3. Path Parameter
+==== Path Parameter
 
 *Beschreibung:*  
 Path Parameter (Route Parameters) sind dynamische Segmente in der URL, z.B. `/details/42` wobei `42` die ID ist. Sie werden in der Route-Konfiguration mit `:paramName` definiert und ermöglichen das Laden von spezifischen Ressourcen.
@@ -198,7 +221,7 @@ const id: string | null = this.activeRoute.snapshot.paramMap.get("id");
 const parsed = parseInt(id || "");
 ----
 
-=== 1.3.4. Query Parameter
+==== Query Parameter
 
 *Beschreibung:*  
 Query Parameter sind optionale Parameter die nach dem `?` in der URL stehen, z.B. `/search?term=angular&page=2`. Sie werden für Filterung, Sortierung, Pagination oder optionale Konfiguration verwendet und überleben Route-Changes.
@@ -220,9 +243,9 @@ const id: string | null = this.activeRoute.snapshot.queryParamMap.get("id");
 const parsed = parseInt(id || "");
 ----
 
-== 1.4. Forms
+=== Forms
 
-=== 1.4.1. Reactive Forms
+==== Reactive Forms
 
 *Beschreibung:*  
 Reactive Forms (Model-Driven) sind die empfohlene Methode für komplexe Formulare in Angular. Das Form-Model wird im TypeScript-Code definiert und das Template bindet sich daran. Bietet volle Kontrolle, Testbarkeit und Type-Safety.
@@ -265,7 +288,7 @@ export class LoginComponent {
 }
 ----
 
-=== 1.4.2. Template Driven Forms
+==== Template Driven Forms
 
 *Beschreibung:*  
 Template Driven Forms sind einfacher zu implementieren und ähneln AngularJS Formularen. Die Form-Logik liegt hauptsächlich im Template mit Directives. Gut geeignet für einfache Formulare mit wenigen Feldern.
@@ -310,7 +333,7 @@ export class LoginComponent {
 }
 ----
 
-== 1.5. Signals
+=== Signals
 
 *Beschreibung:*  
 Signals sind Angulars neues Reaktivitäts-Primitiv (ab v16). Sie ermöglichen Fine-Grained Reactivity, Change Detection Optimierung und bessere Performance. Ein Signal ist ein Wrapper um einen Wert der automatisch Dependencies trackt.
@@ -320,7 +343,7 @@ Signals sind Angulars neues Reaktivitäts-Primitiv (ab v16). Sie ermöglichen Fi
 - Signals müssen mit `()` aufgerufen werden um den Wert zu lesen: `count()`
 - Zum Schreiben: `count.set(5)` oder `count.update(v => v + 1)`
 
-=== 1.5.1. Models
+==== Models
 
 *Beschreibung:*  
 Two-Way Binding von Signals in Standalone Components. Das `model<T>()` Decorator erstellt ein Signal-Property das automatisch mit dem Template synchronisiert wird. Änderungen im Template aktualisieren das Signal und umgekehrt.
@@ -365,7 +388,7 @@ export class ParentComponent {
 }
 ----
 
-=== 1.5.2. Input
+==== Input
 
 *Beschreibung:*  
 Signal-basierte Inputs ersetzen das traditionelle `@Input()` Decorator und bieten Type-Safety, automatische Change Detection und bessere Integration mit dem Signal-System. Parent Components können reaktiv Daten an Child Components übergeben.
@@ -401,7 +424,7 @@ export class ParentComponent {
 }
 ----
 
-=== 1.5.3. Output
+==== Output
 
 *Beschreibung:*  
 Signal-basierte Outputs ersetzen `@Output()` EventEmitter und ermöglichen typsichere Event-Kommunikation von Child zu Parent Component. Events werden mit `output<T>()` definiert und können mit oder ohne Daten emittet werden.
@@ -454,7 +477,7 @@ export class ParentComponent {
 }
 ----
 
-== 1.6. HTTP Client
+=== HTTP Client
 
 *Beschreibung:*  
 Der HttpClient-Service ist Angulars zentrale API für HTTP-Kommunikation. Er bietet eine Observable-basierte API für REST-Calls, automatische JSON-Parsing, Request/Response-Interceptors und Type-Safety durch Generics.
@@ -495,7 +518,7 @@ export class DataService {
 }
 ----
 
-=== 1.6.1. GET
+==== GET
 
 [source,typescript]
 ----
@@ -511,7 +534,7 @@ getGame(id: number): Observable<Game> {
 }
 ----
 
-=== 1.6.2. POST
+==== POST
 
 [source,typescript]
 ----
@@ -520,7 +543,7 @@ postGame(game: Game): Observable<Game> {
 }
 ----
 
-=== 1.6.3. PUT
+==== PUT
 
 [source,typescript]
 ----
@@ -533,7 +556,7 @@ putGame(id: number, game: Game) {
 }
 ----
 
-=== 1.6.4. PATCH
+==== PATCH
 
 [source,typescript]
 ----
@@ -546,7 +569,7 @@ patchGame(id: number, partialGame: Partial<Game>) {
 }
 ----
 
-=== 1.6.5. DELETE
+==== DELETE
 
 [source,typescript]
 ----
@@ -558,9 +581,9 @@ deleteGame(id: number) {
 }
 ----
 
-== 1.7. Templates
+=== Templates
 
-=== 1.7.1. Table
+==== Table
 
 [source,html]
 ----
@@ -590,17 +613,15 @@ deleteGame(id: number) {
 </table>
 ----
 
-=== 1.7.2. Input Form
+==== Input Form
 
 // TODO
 
-=== 1.7.3. Details View
-
+==== Details View
 // TODO
 
-= 2. Backend
-
-== 2.1. CDI (Dependency Injection)
+== Backend
+=== CDI (Dependency Injection)
 
 *Beschreibung:*  
 Dependency Injection Container registriert Services die dann automatisch in Controllers/Endpoints injiziert werden können. Ermöglicht loose coupling, bessere Testbarkeit und zentrale Konfiguration.
@@ -624,9 +645,9 @@ builder.Services.AddTransient<IMessageService, MessageService>();
 builder.Services.AddTransient<MessageService>();
 ----
 
-== 2.2. Swagger
+=== Swagger
 
-=== 2.2.1. Swagger Builder
+==== Swagger Builder
 
 *Beschreibung:*  
 Swagger/OpenAPI UI generiert automatisch interaktive API-Dokumentation. Endpoints können direkt getestet werden, Request/Response Schemas werden visualisiert. Essential für Frontend-Entwickler und API-Testing.
@@ -662,7 +683,7 @@ app.UseSwagger();
 app.UseSwaggerUI();
 ----
 
-=== 2.2.2. Cors
+==== Cors
 
 *Beschreibung:*  
 CORS (Cross-Origin Resource Sharing) erlaubt Browser Requests von anderen Domains (z.B. Frontend auf localhost:4200 zu API auf localhost:5000). Ohne CORS blockiert Browser die Requests aus Sicherheitsgründen.
@@ -686,9 +707,9 @@ builder.Services.AddCors(options =>
 app.UseCors("AllowAngular");
 ----
 
-== 2.3. Minimal API
+=== Minimal API
 
-=== 2.3.1. GET
+==== GET
 
 [source,csharp]
 ----
@@ -706,7 +727,7 @@ app.MapGet("/isValid", (string literal, IRomanNumerals service) =>
 });
 ----
 
-=== 2.3.2. POST
+==== POST
 
 [source,csharp]
 ----
@@ -724,7 +745,7 @@ app.MapPost("/devices", (InputDevice device, IDeviceService service) =>
 });
 ----
 
-=== 2.3.3. PUT
+==== PUT
 
 [source,csharp]
 ----
@@ -742,7 +763,7 @@ app.MapPut("/devices/{id}", (int id, InputDevice device, IDeviceService service)
 });
 ----
 
-=== 2.3.4. PATCH
+==== PATCH
 
 [source,csharp]
 ----
@@ -760,7 +781,7 @@ app.MapPatch("/devices/{id}/status", (int id, string status, IDeviceService serv
 });
 ----
 
-=== 2.3.5. DELETE
+==== DELETE
 
 [source,csharp]
 ----
@@ -778,7 +799,7 @@ app.MapDelete("/devices/{id}", (int id, IDeviceService service) =>
 });
 ----
 
-== 2.4. Authentication
+=== Authentication
 
 *Beschreibung:*  
 JWT (JSON Web Token) Authentication für stateless API-Authentifizierung. Token enthält Claims (User-ID, Roles) und wird bei jedem Request im Authorization-Header gesendet.
@@ -802,7 +823,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 ----
 
-== 2.5. Services
+=== Services
 
 *Beschreibung:*  
 Services kapseln Business-Logic und werden via Dependency Injection in Endpoints/Controller injiziert. Ermöglicht Separation of Concerns, bessere Testbarkeit und Code-Reuse.
@@ -810,7 +831,7 @@ Services kapseln Business-Logic und werden via Dependency Injection in Endpoints
 *Wichtige Hinweise:*
 - Services müssen in `Program.cs` registriert werden (siehe 2.1)
 
-=== Service Interface
+==== Service Interface
 
 [source,csharp]
 ----
@@ -822,7 +843,7 @@ public interface IYourService
 }
 ----
 
-=== Service Implementation
+==== Service Implementation
 
 [source,csharp]
 ----
@@ -834,7 +855,7 @@ public class YourService : IYourService
 }
 ----
 
-=== Service Registration
+==== Service Registration
 
 [source,csharp]
 ----
