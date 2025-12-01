@@ -4,7 +4,7 @@
 
 === 1.1.1. Interceptor
 
-*Beschreibung:*  
+*Beschreibung:*   
 Der HTTP-Interceptor ist eine Middleware-Komponente, die automatisch bei *jedem* ausgehenden HTTP-Request ausgeführt wird. Er fügt den JWT-Token aus dem SessionStorage als Bearer-Token in den Authorization-Header ein, sodass authentifizierte API-Anfragen möglich sind.
 
 *Wichtige Hinweise:*
