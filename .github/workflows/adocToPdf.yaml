@@ -1,0 +1,47 @@
+name: Convert AsciiDoc to PDF
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'cheatsheet.adoc'
+  workflow_dispatch:
+
+jobs:
+  convert-to-pdf:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Install AsciiDoctor and dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ruby-full
+          sudo gem install asciidoctor asciidoctor-pdf rouge
+          
+      - name: Convert AsciiDoc to PDF
+        run: |
+          asciidoctor-pdf \
+            -r asciidoctor-pdf \
+            -r rouge \
+            -a source-highlighter=rouge \
+            -a rouge-style=github \
+            -a pdf-theme=default \
+            -o output.pdf \
+            cheatsheet.adoc
+            
+      - name: Upload PDF artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cheatsheet-pdf
+          path: output.pdf
+          
+      - name: Commit and push PDF
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add output.pdf
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Update output.pdf [skip ci]" && git push)
