@@ -863,3 +863,206 @@ builder.Services.AddTransient<IYourService, YourService>();
 // oder
 builder.Services.AddTransient<YourService>();
 ----
+
+## 2.6. Unit Tests
+
+### 2.6.1. XUnit
+
+*Beschreibung:*
+XUnit ist ein populäres Testing-Framework für .NET. Es ermöglicht das Schreiben von Unit-Tests, Integrationstests und End-to-End-Tests. Tests werden in separaten Projekten organisiert und können automatisiert ausgeführt werden.
+
+*Wichtige Hinweise:*
+- Test-Projekt muss `xunit` und `xunit.runner.visualstudio` NuGet-Pakete referenzieren
+- Test-Klassen müssen mit `[Fact]` oder `[Theory]` dekoriert werden
+
+[source,csharp]
+----
+using Xunit;
+using YourProject.Services;
+namespace YourProject.Tests;
+
+public class YourServiceTests
+{
+    private readonly IYourService _yourService;
+
+    public YourServiceTests()
+    {
+        _yourService = new YourService();
+    }
+
+    [Fact]
+    public void YourMethod_ShouldReturnExpectedResult()
+    {
+        // Arrange
+        var input = ...;
+
+        // Act
+        var result = _yourService.YourMethod(input);
+
+        // Assert
+        Assert.Equal(expectedResult, result);
+    }
+}
+----
+
+### 2.6.2. NUnit
+
+*Beschreibung:*
+NUnit ist ein weiteres weit verbreitetes Testing-Framework für .NET. Es bietet ähnliche Funktionalitäten wie XUnit, mit einer etwas anderen Syntax und Struktur. NUnit unterstützt auch Data-Driven Tests und bietet umfangreiche Assertions.
+
+*Wichtige Hinweise:*
+- Test-Projekt muss `NUnit` und `NUnit3TestAdapter` NuGet-Pakete referenzieren
+
+[source,csharp]
+----
+using NUnit.Framework;
+using YourProject.Services;
+namespace YourProject.Tests;
+
+public class YourServiceTests
+{
+    private IYourService _yourService;
+
+    [SetUp]
+    public void Setup()
+    {
+        _yourService = new YourService();
+    }
+
+    [Test]
+    public void YourMethod_ShouldReturnExpectedResult()
+    {
+        // Arrange
+        var input = ...;
+
+        // Act
+        var result = _yourService.YourMethod(input);
+
+        // Assert
+        Assert.AreEqual(expectedResult, result);
+    }
+}
+----
+
+### 2.6.3. FluentAssertions
+
+*Beschreibung:*
+FluentAssertions ist eine Erweiterung für Testing-Frameworks wie XUnit und NUnit, die eine lesbare und ausdrucksstarke Syntax für Assertions bietet. Es verbessert die Klarheit der Tests und erleichtert das Debugging.
+
+*Wichtige Hinweise:*
+- Test-Projekt muss `FluentAssertions` NuGet-Paket referenzieren
+
+[source,csharp]
+----
+using FluentAssertions;
+using Xunit;
+using YourProject.Services;
+namespace YourProject.Tests;
+
+public class YourServiceTests
+{
+    private readonly IYourService _yourService;
+
+    public YourServiceTests()
+    {
+        _yourService = new YourService();
+    }
+
+    [Fact]
+    public void YourMethod_ShouldReturnExpectedResult()
+    {
+        // Arrange
+        var input = ...;
+
+        // Act
+        var result = _yourService.YourMethod(input);
+
+        // Assert
+        result.Should().Be(expectedResult);
+    }
+}
+----
+
+### 2.6.4. Moq
+
+*Beschreibung:*
+Moq ist ein Mocking-Framework für .NET, das es ermöglicht, Abhängigkeiten zu mocken und zu stubben. Ideal für Unit-Tests, um isolierte Testszenarien zu erstellen.
+
+*Wichtige Hinweise:*
+- Test-Projekt muss `Moq` NuGet-Paket referenzieren
+- Verwende `Mock<T>` um Mocks zu erstellen und Verhalten zu konfigurieren
+
+[source,csharp]
+----
+using Moq;
+using Xunit;
+using YourProject.Services;
+namespace YourProject.Tests;
+
+public class YourServiceTests
+{
+    private readonly Mock<IDependencyService> _dependencyServiceMock;
+    private readonly IYourService _yourService;
+
+    public YourServiceTests()
+    {
+        _dependencyServiceMock = new Mock<IDependencyService>();
+        _yourService = new YourService(_dependencyServiceMock.Object);
+    }
+
+    [Fact]
+    public void YourMethod_ShouldReturnExpectedResult()
+    {
+        // Arrange
+        var input = ...;
+        _dependencyServiceMock.Setup(ds => ds.SomeMethod(It.IsAny<Type>()))
+            .Returns(expectedValue);
+
+        // Act
+        var result = _yourService.YourMethod(input);
+
+        // Assert
+        Assert.Equal(expectedResult, result);
+        _dependencyServiceMock.Verify(ds => ds.SomeMethod(It.IsAny<Type>()), Times.Once);
+    }
+}
+----
+
+### 2.6.5. Testen von Minimal APIs
+
+*Beschreibung:*
+Minimal APIs können mit dem `WebApplicationFactory<TEntryPoint>` aus dem `Microsoft.AspNetCore.Mvc.Testing` Paket getestet werden. Dies ermöglicht das Starten der API in einem Test-Host und das Senden von HTTP-Requests.
+
+*Wichtige Hinweise:*
+- Test-Projekt muss `Microsoft.AspNetCore.Mvc.Testing` NuGet-Paket referenzieren
+- Verwende `HttpClient` um Requests an die API zu senden
+[source,csharp]
+----
+using Microsoft.AspNetCore.Mvc.Testing;
+using System.Net.Http;
+using System.Threading.Tasks;
+using Xunit;
+namespace YourProject.Tests;
+
+public class YourApiTests : IClassFixture<WebApplicationFactory<Program>>
+{
+    private readonly HttpClient _client;
+
+    public YourApiTests(WebApplicationFactory<Program> factory)
+    {
+        _client = factory.CreateClient();
+    }
+
+    [Fact]
+    public async Task GetEndpoint_ShouldReturnSuccessStatusCode()
+    {
+        // Act
+        var response = await _client.GetAsync("/your-endpoint");
+
+        // Assert
+        response.EnsureSuccessStatusCode();
+        var content = await response.Content.ReadAsStringAsync();
+        Assert.NotNull(content);
+    }
+}
+----
