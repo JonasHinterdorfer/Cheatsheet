@@ -148,12 +148,7 @@ Custom Validators für Template-Driven Forms. Diese Directive validiert Benutzer
 })
 export class ValidateHour implements Validator {
   validate(control: AbstractControl): ValidationErrors | null {
-    if(!control.value || control.value === "") return null;
-    const parsed = parseInt(control.value);
-    if(isNaN(parsed)) return { notANumber: true};
-    if(parsed > 23 || parsed < 0) {
-      return { numberOutOfRange: true};
-    }
+    if(control.value === "") return {errorMassage: true};
     return null;
   }
 }
@@ -314,37 +309,36 @@ Reactive Forms (Model-Driven) sind die empfohlene Methode für komplexe Formular
 * `[formGroup]` Directive auf `<form>` Element binden
 * Verwende `FormBuilder` Service für sauberere Syntax
 
+*TypeScript:*
 [source,typescript]
 ----
-@Component({
-  selector: 'app-login',
-  template: `
-    <form [formGroup]="loginForm" (ngSubmit)="onSubmit()">
-      <label for="username">Username:</label>
-      <input type="text" id="username" formControlName="username" />
-      <label for="password">Password:</label>
-      <input type="password" id="password" formControlName="password" />
-      <button type="submit" [disabled]="!loginForm.valid">Login</button>
-    </form>
-  `,
-})
-export class LoginComponent {
-  loginForm: FormGroup;
-  
-  constructor(private fb: FormBuilder) {
-    this.loginForm = this.fb.group({
-      username: ['', Validators.required],
-      password: ['', Validators.required],
-    });
-  }
-  
-  onSubmit() {
-    if (this.loginForm.valid) {
-      const { username, password } = this.loginForm.value;
-      // Handle login logic
-    }
+loginForm: FormGroup;
+
+constructor(private fb: FormBuilder) {
+  this.loginForm = this.fb.group({
+    username: ['', Validators.required],
+    password: ['', Validators.required],
+  });
+}
+
+onSubmit() {
+  if (this.loginForm.valid) {
+    const { username, password } = this.loginForm.value;
+    // Handle login logic
   }
 }
+----
+
+*HTML:*
+[source,html]
+----
+<form [formGroup]="loginForm" (ngSubmit)="onSubmit()">
+  <label for="username" name="username">Username:</label>
+  <input id="username" type="text" formControlName="username" />
+  <label for="password" name="password">Password:</label>
+  <input id="password" type="password" formControlName="password" />
+  <button type="submit" [disabled]="!loginForm.valid">Login</button>
+</form>
 ----
 
 ==== Template Driven Forms
@@ -357,42 +351,41 @@ Template Driven Forms sind einfacher zu implementieren und ähneln AngularJS For
 * `FormsModule` muss importiert werden
 * `[(ngModel)]` bindet an Component-Property (Two-Way Binding)
 
+*TypeScript:*
 [source,typescript]
 ----
-@Component({
-  selector: 'app-login',
-  template: `
-    <form (ngSubmit)="onSubmit()" #loginForm="ngForm">
-      <label for="username">Username:</label>
-      <input
-        type="text"
-        id="username"
-        name="username"
-        required
-        app-validation-directive
-        [(ngModel)]="username"
-      />
-      <label for="password">Password:</label>
-      <input
-        type="password"
-        id="password"
-        name="password"
-        required
-        app-validation-directive
-        [(ngModel)]="password"
-      />
-      <button type="submit" [disabled]="!loginForm.form.valid">Login</button
-    </form>
-  `,
-})
-export class LoginComponent {
-  username = model<string>('');
-  password = model<string>('');
-  
-  onSubmit() {
-    // Handle login logic with this.username() and this.password()
-  }
+username = model<string>('');
+password = model<string>('');
+
+onSubmit() {
+  // Handle login logic with this.username() and this.password()
 }
+----
+
+*HTML:*
+[source,html]
+----
+<form (ngSubmit)="onSubmit()" #loginForm="ngForm">
+  <label for="username" name="username">Username:</label>
+  <input
+    id="username"
+    type="text"
+    name="username"
+    required
+    app-validation-directive
+    [(ngModel)]="username"
+  />
+  <label for="password" name="password">Password:</label>
+  <input
+    id="password"
+    type="password"
+    name="password"
+    required
+    app-validation-directive
+    [(ngModel)]="password"
+  />
+  <button type="submit" [disabled]="!loginForm.form.valid">Login</button>
+</form>
 ----
 
 === Signals
@@ -417,39 +410,38 @@ Two-Way Binding von Signals in Standalone Components. Das `model<T>()` Decorator
 * Im Template mit `[(ngModel)]="propertyName"` binden
 * Änderungen im Template aktualisieren automatisch das Signal
 
+*Child Component (TypeScript):*
 [source,typescript]
 ----
-// Child Component
-@Component({
-  selector: 'app-device-form',
-  template: `
-    <form>
-      <label for="name">Device Name:</label>
-      <input id="name" type="text" [(ngModel)]="deviceName" />
+deviceName = model<string>('');
+deviceDescription = model<string>('');
+----
 
-      <label for="description">Description:</label>
-      <input id="description" type="text" [(ngModel)]="deviceDescription" />
-    </form>
-  `,
-})
-export class DeviceFormComponent {
-  deviceName = model<string>('');
-  deviceDescription = model<string>('');
-}
+*Child Component (HTML):*
+[source,html]
+----
+<form>
+  <label for="deviceName" name="deviceName">Device Name:</label>
+  <input id="deviceName" type="text" [(ngModel)]="deviceName" />
+  <label for="deviceDescription" name="deviceDescription">Description:</label>
+  <input id="deviceDescription" type="text" [(ngModel)]="deviceDescription" />
+</form>
+----
 
-// Parent Component
-@Component({
-  template: `
-    <app-device-form
-      [(deviceName)]="name"
-      [(deviceDescription)]="description"
-    />
-  `
-})
-export class ParentComponent {
-  name = signal<string>('Initial Device');
-  description = signal<string>('Initial Description');
-}
+*Parent Component (TypeScript):*
+[source,typescript]
+----
+name = signal<string>('Initial Device');
+description = signal<string>('Initial Description');
+----
+
+*Parent Component (HTML):*
+[source,html]
+----
+<app-device-form
+  [(deviceName)]="name"
+  [(deviceDescription)]="description"
+/>
 ----
 
 ==== Input
@@ -463,30 +455,28 @@ Signal-basierte Inputs ersetzen das traditionelle `@Input()` Decorator und biete
 * `input<T>(defaultValue)` für optionale Inputs mit Fallback-Wert
 * Signal Inputs sind *readonly* - Child kann Wert nicht direkt ändern
 
+*Child Component (TypeScript):*
 [source,typescript]
 ----
-@Component({
-  selector: 'app-device-card',
-})
-export class DeviceCardComponent {
-  device = input.required<InputDevice>();
-  isRequired = input<boolean>(false);
-  title = input<string>('Default Title');
-}
+device = input.required<InputDevice>();
+isRequired = input<boolean>(false);
+title = input<string>('Default Title');
+----
 
-// Parent Component
-@Component({
-  template: `
-    <app-device-card 
-      [device]="selectedDevice()"
-      [isRequired]="true"
-      [title]="'Device Details'"
-    />
-  `
-})
-export class ParentComponent {
-  selectedDevice = signal<InputDevice>({ id: 1, name: 'Device 1' });
-}
+*Parent Component (HTML):*
+[source,html]
+----
+<app-device-card 
+  [device]="selectedDevice()"
+  [isRequired]="true"
+  [title]="'Device Details'"
+/>
+----
+
+*Parent Component (TypeScript):*
+[source,typescript]
+----
+selectedDevice = signal<InputDevice>({ id: 1, name: 'Device 1' });
 ----
 
 ==== Output
@@ -500,47 +490,48 @@ Signal-basierte Outputs ersetzen `@Output()` EventEmitter und ermöglichen typsi
 * Events werden mit `.emit(value)` ausgelöst (wie bei EventEmitter)
 * Parent muss Event im Template mit `(eventName)="handler($event)"` abonnieren
 
+*Child Component (TypeScript):*
 [source,typescript]
 ----
-@Component({
-  selector: 'app-device-form',
-  template: `
-    <button (click)="handleSave()">Save</button>
-    <button (click)="handleCancel()">Cancel</button>
-  `
-})
-export class DeviceFormComponent {
-  deviceSaved = output<InputDevice>();
-  cancelled = output<void>();
+deviceSaved = output<InputDevice>();
+cancelled = output<void>();
 
-  handleSave() {
-    const device: InputDevice = { id: 1, name: 'Device 1' };
-    this.deviceSaved.emit(device);
-  }
-
-  handleCancel() {
-    this.cancelled.emit();
-  }
+handleSave() {
+  const device: InputDevice = { id: 1, name: 'Device 1' };
+  this.deviceSaved.emit(device);
 }
 
-// Parent Component
-@Component({
-  template: `
-    <app-device-form 
-      (deviceSaved)="onDeviceSaved($event)"
-      (cancelled)="onCancelled()"
-    />
-  `
-})
-export class ParentComponent {
-  onDeviceSaved(device: InputDevice) {
-    console.log('Device saved:', device);
-  }
-
-  onCancelled() {
-    console.log('Form cancelled');
-  }
+handleCancel() {
+  this.cancelled.emit();
 }
+----
+
+*Child Component (HTML):*
+[source,html]
+----
+<button (click)="handleSave()">Save</button>
+<button (click)="handleCancel()">Cancel</button>
+----
+
+*Parent Component (TypeScript):*
+[source,typescript]
+----
+onDeviceSaved(device: InputDevice) {
+  console.log('Device saved:', device);
+}
+
+onCancelled() {
+  console.log('Form cancelled');
+}
+----
+
+*Parent Component (HTML):*
+[source,html]
+----
+<app-device-form 
+  (deviceSaved)="onDeviceSaved($event)"
+  (cancelled)="onCancelled()"
+/>
 ----
 
 === HTTP Client
