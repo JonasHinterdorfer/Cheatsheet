@@ -39,16 +39,6 @@ jobs:
             -o output.pdf \
             cheatsheet.adoc
 
-      - name: Convert AsciiDoc to PDF no text
-        run: |
-          asciidoctor-pdf \
-            -r asciidoctor-pdf \
-            -r rouge \
-            -a source-highlighter=rouge \
-            -a rouge-style=github \
-            -a pdf-theme=default \
-            -o output-no-text.pdf \
-            cheatsheet-no-text.adoc
             
       - name: Upload PDF artifact
         uses: actions/upload-artifact@v4
@@ -66,5 +56,5 @@ jobs:
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add output.pdf output-no-text.pdf
+          git add output.pdf
           git diff --quiet && git diff --staged --quiet || (git commit -m "Update output.pdf and output-no-text.pdf [skip ci]" && git push)
