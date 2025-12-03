@@ -637,6 +637,75 @@ deleteGame(id: number) {
 }
 ----
 
+==== Request Parameters
+
+*Beschreibung:*  
+HTTP Request Parameters ermöglichen das Übergeben von Daten an API-Endpoints über drei Hauptmethoden: Query Parameters in der URL, Path Parameters als Teil der URL, und Request Body für komplexe Daten.
+
+===== Query Parameters
+
+*Beschreibung:*  
+Query Parameters werden als Key-Value-Pairs an die URL angehängt (`?key=value&key2=value2`).
+
+[source,typescript]
+----
+// Einzelner Query Parameter
+getDevices(searchTerm: string): Observable<Device[]> {
+  const params = new HttpParams().set('search', searchTerm);
+  return this.http.get<Device[]>(`${this.apiUrl}/devices`, { params });
+}
+
+// Mehrere Query Parameters
+getDevices(search: string, page: number): Observable<Device[]> {
+  const params = new HttpParams()
+    .set('search', search)
+    .set('page', page.toString());
+  return this.http.get<Device[]>(`${this.apiUrl}/devices`, { params });
+}
+----
+
+===== Path Parameters
+
+*Beschreibung:*  
+Path Parameters werden direkt in die URL als Segmente eingebaut (`/api/devices/123`).
+
+[source,typescript]
+----
+// Path Parameter in URL
+getDevice(id: number): Observable<Device> {
+  return this.http.get<Device>(`${this.apiUrl}/devices/${id}`);
+}
+
+// Mehrere Path Parameters
+getReservation(deviceId: number, reservationId: number): Observable<Reservation> {
+  return this.http.get<Reservation>(`${this.apiUrl}/devices/${deviceId}/reservations/${reservationId}`);
+}
+----
+
+===== Request Body
+
+*Beschreibung:*  
+Request Body überträgt komplexe Daten als JSON bei POST, PUT und PATCH Requests.
+
+[source,typescript]
+----
+// POST mit Request Body
+createDevice(device: Device): Observable<Device> {
+  return this.http.post<Device>(`${this.apiUrl}/devices`, device);
+}
+
+// PUT mit Request Body und Path Parameter
+updateDevice(id: number, device: Device): Observable<Device> {
+  return this.http.put<Device>(`${this.apiUrl}/devices/${id}`, device);
+}
+
+// Kombination: Body + Query Parameter
+createDevice(device: Device, notify: boolean): Observable<Device> {
+  const params = new HttpParams().set('notify', notify.toString());
+  return this.http.post<Device>(`${this.apiUrl}/devices`, device, { params });
+}
+----
+
 === Template Syntax
 ==== @for
 
