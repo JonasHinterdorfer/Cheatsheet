@@ -649,13 +649,6 @@ Query Parameters werden als Key-Value-Pairs an die URL angehängt (`?key=value&k
 
 [source,typescript]
 ----
-// Einzelner Query Parameter
-getDevices(searchTerm: string): Observable<Device[]> {
-  const params = new HttpParams().set('search', searchTerm);
-  return this.http.get<Device[]>(`${this.apiUrl}/devices`, { params });
-}
-
-// Mehrere Query Parameters
 getDevices(search: string, page: number): Observable<Device[]> {
   const params = new HttpParams()
     .set('search', search)
@@ -671,14 +664,8 @@ Path Parameters werden direkt in die URL als Segmente eingebaut (`/api/devices/1
 
 [source,typescript]
 ----
-// Path Parameter in URL
 getDevice(id: number): Observable<Device> {
   return this.http.get<Device>(`${this.apiUrl}/devices/${id}`);
-}
-
-// Mehrere Path Parameters
-getReservation(deviceId: number, reservationId: number): Observable<Reservation> {
-  return this.http.get<Reservation>(`${this.apiUrl}/devices/${deviceId}/reservations/${reservationId}`);
 }
 ----
 
@@ -689,20 +676,12 @@ Request Body überträgt komplexe Daten als JSON bei POST, PUT und PATCH Request
 
 [source,typescript]
 ----
-// POST mit Request Body
 createDevice(device: Device): Observable<Device> {
   return this.http.post<Device>(`${this.apiUrl}/devices`, device);
 }
 
-// PUT mit Request Body und Path Parameter
 updateDevice(id: number, device: Device): Observable<Device> {
   return this.http.put<Device>(`${this.apiUrl}/devices/${id}`, device);
-}
-
-// Kombination: Body + Query Parameter
-createDevice(device: Device, notify: boolean): Observable<Device> {
-  const params = new HttpParams().set('notify', notify.toString());
-  return this.http.post<Device>(`${this.apiUrl}/devices`, device, { params });
 }
 ----
 
@@ -719,8 +698,8 @@ Die `@for` Direktive ermöglicht das Iterieren über Arrays oder Collections im 
 
 [source,html]
 ----
-@for (device of devices; track device) {
-  <div>{{ device.name }}</div>
+@for (device of devices; track device; let i = $index) {
+  <div>{{ i }}: {{ device.name }}</div>
 }
 ----
 
