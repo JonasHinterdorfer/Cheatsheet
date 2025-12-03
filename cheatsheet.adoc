@@ -83,6 +83,39 @@ export class AuthGuard implements CanActivate {
 }
 ----
 
+=== Environment
+
+*Beschreibung:*  
+Environment-Dateien ermöglichen unterschiedliche Konfigurationen für Umgebungen.
+
+==== Environment Definition
+
+[source,typescript]
+----
+// src/environments/environment.ts
+export const environment = {
+  production: false,
+  apiBaseUrl: 'http://localhost:5000/api'
+};
+----
+
+==== Environment Usage
+
+*Beschreibung:*  
+Import der Environment-Konfiguration in Services oder Components.
+
+[source,typescript]
+----
+import { environment } from '../environments/environment';
+
+@Injectable({
+  providedIn: 'root'
+})
+export class DataService {
+  private apiUrl = environment.apiBaseUrl;
+}
+----
+
 === Directives
 
 ==== Filter Directives
