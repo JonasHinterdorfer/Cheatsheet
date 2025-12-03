@@ -369,6 +369,7 @@ Template Driven Forms sind einfacher zu implementieren und ähneln AngularJS For
         id="username"
         name="username"
         required
+        app-validation-directive
         [(ngModel)]="username"
       />
       <label for="password">Password:</label>
@@ -377,6 +378,7 @@ Template Driven Forms sind einfacher zu implementieren und ähneln AngularJS For
         id="password"
         name="password"
         required
+        app-validation-directive
         [(ngModel)]="password"
       />
       <button type="submit" [disabled]="!loginForm.form.valid">Login</button
