@@ -583,6 +583,41 @@ export class DataService {
 }
 ----
 
+=== Observables
+
+HttpClient liefert immer Observable<T> zurück. Ausgeführt wird es erst mit subscribe().
+
+==== subscribe mit next + error
+
+[source,typescript] 
+----
+this.service.getData().subscribe({
+  next: data => {
+    console.log('OK:', data);
+  },
+  error: err => {
+    console.error('Fehler:', err);
+  }
+});
+----
+
+==== Eigenes Observable (Minimalbeispiel)
+
+[source,typescript]
+----
+const obs$ = new Observable(o => {
+  o.next('Hallo');
+  o.error('Fehler');
+});
+
+obs$.subscribe({
+  next: v => console.log(v),
+  error: e => console.error(e)
+});
+----
+
+=== HTTP Requests
+
 ==== GET
 
 [source,typescript]
