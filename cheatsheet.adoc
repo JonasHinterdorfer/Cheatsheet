@@ -240,6 +240,8 @@ Programmatische Navigation ermöglicht das Wechseln zwischen Routes im TypeScrip
 
 [source,typescript]
 ----
+searchTerm = signal<string>('');
+
 this.router.navigate(["/overview"], {
   queryParams: { searchTerm: this.searchTerm() }
 });
@@ -262,11 +264,14 @@ export const routes: Routes = [
 ];
 
 // Navigation
-this.router.navigate(["/details", deviceId]);
+deviceId = signal<number>(42);
+this.router.navigate(["/details", this.deviceId()]);
 
 // In Component
+deviceId = signal<number>(0);
+
 const id: string | null = this.activeRoute.snapshot.paramMap.get("id");
-const parsed = parseInt(id || "");
+this.deviceId.set(parseInt(id || "0"));
 ----
 
 ==== Query Parameter
@@ -283,13 +288,17 @@ Query Parameter sind optionale Parameter die nach dem `?` in der URL stehen, z.B
 [source,typescript]
 ----
 // Navigation
+searchTerm = signal<string>('');
+
 this.router.navigate(["/overview"], {
   queryParams: { searchTerm: this.searchTerm() }
 });
 
 // In Component
+deviceId = signal<number>(0);
+
 const id: string | null = this.activeRoute.snapshot.queryParamMap.get("id");
-const parsed = parseInt(id || "");
+this.deviceId.set(parseInt(id || "0"));
 ----
 
 === Forms
@@ -375,11 +384,11 @@ Template Driven Forms sind einfacher zu implementieren und ähneln AngularJS For
   `,
 })
 export class LoginComponent {
-  username: string = '';
-  password: string = '';
+  username = model<string>('');
+  password = model<string>('');
   
   onSubmit() {
-    // Handle login logic
+    // Handle login logic with this.username() and this.password()
   }
 }
 ----
@@ -698,7 +707,7 @@ Die `@for` Direktive ermöglicht das Iterieren über Arrays oder Collections im 
 
 [source,html]
 ----
-@for (device of devices; track device; let i = $index) {
+@for (device of devices(); track device.id; let i = $index) {
   <div>{{ i }}: {{ device.name }}</div>
 }
 ----
@@ -715,7 +724,7 @@ Die `@if` Direktive ermöglicht bedingtes Rendern von Template-Abschnitten basie
 
 [source,html]
 ----
-@if (isLoggedIn) {
+@if (isLoggedIn()) {
   <div>Welcome back, user!</div>
 } @else {
   <div>Please log in to continue.</div>
@@ -735,7 +744,7 @@ Die `@if` Direktive ermöglicht bedingtes Rendern von Template-Abschnitten basie
           <th></th>
         </tr>
       </thead>
-    @for (device of filteredDevices; track device) {
+    @for (device of filteredDevices(); track device.id) {
       <tbody>
         <tr class="border-bottom">
           <td>{{ device.name }}</td>
