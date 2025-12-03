@@ -137,7 +137,14 @@ Custom Validators für Template-Driven Forms. Diese Directive validiert Benutzer
 [source,typescript]
 ----
 @Directive({
-  selector: '[appValidateHour]'
+  selector: '[appValidateHour]',
+  providers: [
+    {
+      provide: NG_VALIDATORS,
+      useExisting: forwardRef(() => NameDirective),
+      multi: true
+    }
+  ]
 })
 export class ValidateHour implements Validator {
   validate(control: AbstractControl): ValidationErrors | null {
