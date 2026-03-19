@@ -2,17 +2,24 @@
 {docdate}
 :doctype: book
 :encoding: utf-8
-:lang: de
+:lang: en
 :toc: left
 :toclevels: 3
-:sectanchors:
+:sectanchors: 
 :sectnums:
 :sectnumlevels: 3
 :xrefstyle: short
 :source-highlighter: rouge
 :rouge-style: github
 :icons: font
+:stem: latexmath
 :experimental:
+:pdf-theme: school
+:pdf-themesdir: ~/.asciidoctor/themes
+:allow-uri-read:
+:sectlinks:
+:!chapter-signifier:
+:imagesdir: resources
 
 == Ziel
 
