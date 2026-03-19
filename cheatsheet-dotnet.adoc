@@ -1,1 +1,292 @@
+= C# Entity Framework Cheatsheet
+{docdate}
+:doctype: book
+:encoding: utf-8
+:lang: de
+:toc: left
+:toclevels: 3
+:sectanchors:
+:sectnums:
+:sectnumlevels: 3
+:xrefstyle: short
+:source-highlighter: rouge
+:rouge-style: github
+:icons: font
+:experimental:
 
+== Ziel
+
+Dieser Cheatsheet ist bewusst allgemein gehalten.
+Er hilft dir, typische Schul-/Uebungsaufgaben mit einer mehrschichtigen C#-Architektur schnell und sauber umzusetzen.
+
+Er deckt ab:
+
+* Projektstruktur (Core, Persistence, API, Import/Tools)
+* EF Core mit Fluent API
+* Repository + UnitOfWork
+* REST Endpoints + Validierung
+* Reporting/Overview Queries
+* Import aus Dateien
+
+== Architektur
+
+[source,text]
+----
+Core
+  - Entities, Enums, Value Objects
+  - Interfaces (Repositories, UnitOfWork)
+  - QueryResult/ReadModels
+
+Persistence
+  - DbContext
+  - Entity Configurations (Fluent API)
+  - Repository Implementierungen
+  - UnitOfWork Implementierung
+
+WebAPI
+  - DTOs
+  - Endpoint Mapping
+  - Validatoren
+  - Dependency Injection Registrierung
+
+Import/Console
+  - Datei einlesen
+  - Daten transformieren
+  - Über Repositories speichern
+----
+
+== Entity Template
+
+[source,csharp]
+----
+public class EntityName : EntityObject
+{
+    public string RequiredText { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; }
+
+    public int ParentId { get; set; }
+    public ParentEntity Parent { get; set; } = null!;
+}
+----
+
+== Fluent API
+
+Nutze Fluent API fuer DB-Regeln.
+
+=== Configuration Template
+
+[source,csharp]
+----
+public class EntityNameConfiguration : IEntityTypeConfiguration<EntityName>
+{
+    public void Configure(EntityTypeBuilder<EntityName> builder)
+    {
+        builder.HasKey(x => x.Id);
+
+        builder.Property(x => x.RequiredText)
+            .IsRequired()
+            .HasMaxLength(100);
+
+        builder.HasOne(x => x.Parent)
+            .WithMany(p => p.Children)
+            .HasForeignKey(x => x.ParentId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(x => x.RequiredText);
+    }
+}
+----
+
+=== DbContext Template
+
+[source,csharp]
+----
+public class ApplicationDbContext : DbContext
+{
+    public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options) { }
+
+    public DbSet<EntityName> EntityNames { get; set; } = null!;
+    public DbSet<ParentEntity> ParentEntities { get; set; } = null!;
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
+    }
+}
+----
+
+=== Migration Ablauf
+
+Entweder über die Konsole oder über: Tools > Entity Framework Core > Add Migration / Update Database
+
+[source,powershell]
+----
+dotnet ef migrations add InitialCreate --project .\Persistence\Persistence.csproj --startup-project .\WebAPI\WebAPI.csproj
+
+dotnet ef database update --project .\Persistence\Persistence.csproj --startup-project .\WebAPI\WebAPI.csproj
+----
+
+== Repository + UnitOfWork Muster
+
+=== Contracts in Core
+
+[source,csharp]
+----
+public interface IEntityRepository : IGenericRepository<EntityName>
+{
+    Task<IList<EntityOverview>> GetOverviewAsync(string? filter, bool? onlyActive);
+}
+
+public interface IUnitOfWork : IBaseUnitOfWork
+{
+    IEntityRepository Entities { get; }
+    IAnotherRepository Others { get; }
+}
+----
+
+=== UnitOfWork in Persistence
+
+[source,csharp]
+----
+public class UnitOfWork : BaseUnitOfWork, IUnitOfWork
+{
+    public UnitOfWork(ApplicationDbContext dbContext) : base(dbContext)
+    {
+        Entities = new EntityRepository(dbContext);
+        Others = new AnotherRepository(dbContext);
+    }
+
+    public IEntityRepository Entities { get; }
+    public IAnotherRepository Others { get; }
+}
+----
+
+=== Query-Regeln für gute Read-Methoden
+
+* Für reine Leseabfragen: `AsNoTracking()`
+* Erst filtern, dann projezieren
+* In Repository nur Datenlogik, keine API-Logik
+* Rückgabe für Listen: `IList<T>` oder `List<T>` konsistent halten
+
+== ReadModels / Overview-Objekte
+
+Nutze eigene Typen für Auswertungen statt Entities 1:1 nach außen zu geben.
+
+[source,csharp]
+----
+public record EntityOverview(
+    int Id,
+    string DisplayName,
+    bool IsActive,
+    int RelatedCount
+);
+----
+
+=== Typisches Query-Template
+
+[source,csharp]
+----
+public async Task<IList<EntityOverview>> GetOverviewAsync(string? filter, bool? onlyActive)
+{
+    var query = _dbContext.Entities.AsNoTracking().AsQueryable();
+
+    if (!string.IsNullOrWhiteSpace(filter))
+        query = query.Where(x => x.Name.Contains(filter));
+
+    if (onlyActive == true)
+        query = query.Where(x => x.ActiveUntil == null || x.ActiveUntil >= DateTime.Today);
+
+    return await query
+        .Select(x => new EntityOverview(
+            x.Id,
+            x.Name,
+            x.ActiveUntil == null || x.ActiveUntil >= DateTime.Today,
+            x.Children.Count))
+        .OrderBy(x => x.DisplayName)
+        .ToListAsync();
+}
+----
+
+== API Design Muster
+
+=== DTO statt Entity direkt verwenden
+
+[source,csharp]
+----
+public record EntityDto(int Id, string Name, string Type);
+----
+
+=== Endpoint-Satz (Minimal API)
+
+[source,csharp]
+----
+route.MapGet("", async (IUnitOfWork uow) => Results.Ok(await uow.Entities.GetNoTrackingAsync()));
+route.MapGet("/{id:int}", async (int id, IUnitOfWork uow) => { /* by id */ });
+route.MapPost("", async (EntityDto dto, IUnitOfWork uow) => { /* create */ });
+route.MapPut("/{id:int}", async (int id, EntityDto dto, IUnitOfWork uow) => { /* update */ });
+route.MapDelete("/{id:int}", async (int id, IUnitOfWork uow) => { /* delete */ });
+route.MapGet("/overview", async (string? filter, bool? onlyActive, IUnitOfWork uow) => { /* report */ });
+----
+
+=== API Fehlerbehandlung
+
+* 400 bei ungueltigen Requests
+* 404 wenn Ressource fehlt
+* 201 bei Create
+* 204 bei erfolgreichem Update/Delete ohne Body
+
+== Validierung (FluentValidation)
+
+Halte Regeln im API-Projekt, nicht in Endpoints verstreut.
+
+[source,csharp]
+----
+public class EntityDtoValidator : AbstractValidator<EntityDto>
+{
+    public EntityDtoValidator()
+    {
+        RuleFor(x => x.Name)
+            .NotEmpty()
+            .MinimumLength(3)
+            .MaximumLength(100);
+
+        RuleFor(x => x.Type)
+            .NotEmpty();
+    }
+}
+----
+
+== Import-Pipeline Muster
+
+=== Stabiler Ablauf
+
+. Datei lesen (CSV/JSON)
+. Zeilen validieren
+. Referenzen auflösen (Lookup Tabellen)
+. Neue Datensätze erzeugen oder bestehende aktualisieren
+. In Batches speichern
+. Abschlussbericht ausgeben
+
+=== Import Template
+
+[source,csharp]
+----
+foreach (var row in importedRows)
+{
+    var existing = await repository.GetAsync(x => x.ExternalKey == row.ExternalKey);
+
+    if (!existing.Any())
+    {
+        await repository.AddAsync(new EntityName { ExternalKey = row.ExternalKey, Name = row.Name });
+    }
+}
+
+await uow.SaveChangesAsync();
+----
+
+Tipps:
+
+* Duplikate über eindeutige Schlüssel erkennen
+* Großen Import in mehrere `SaveChangesAsync()` Blöcke teilen
+* Fehler pro Zeile sammeln statt sofort abbrechen (optional)
