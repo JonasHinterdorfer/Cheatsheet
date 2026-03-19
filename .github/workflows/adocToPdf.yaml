@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'cheatsheet.adoc'
+      - 'cheatsheet-dotnet.adoc'
       - '.github/workflows/adocToPdf.yaml'
   workflow_dispatch:
 
@@ -39,6 +40,16 @@ jobs:
             -o output.pdf \
             cheatsheet.adoc
 
+      - name: Convert AsciiDoc to PDF original
+        run: |
+          asciidoctor-pdf \
+            -r asciidoctor-pdf \
+            -r rouge \
+            -a source-highlighter=rouge \
+            -a rouge-style=github \
+            -a pdf-theme=default \
+            -o chatsheet-dotnet.pdf \
+            cheatsheet-dotnet.adoc
             
       - name: Upload PDF artifact
         uses: actions/upload-artifact@v4
@@ -57,4 +68,5 @@ jobs:
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           git add output.pdf
+          git add chatsheet-dotnet.pdf
           git diff --quiet && git diff --staged --quiet || (git commit -m "Update output.pdf and output-no-text.pdf [skip ci]" && git push)
