@@ -224,24 +224,212 @@ public async Task<IList<EntityOverview>> GetOverviewAsync(string? filter, bool? 
 public record EntityDto(int Id, string Name, string Type);
 ----
 
-=== Endpoint-Satz (Minimal API)
+=== Mapper-Funktionen (DTO <-> Entity)
+
+Halte Mapping zentral in der Endpoint-Klasse (oder in einer separaten Mapper-Klasse), damit Create/Update/Get konsistent bleiben.
 
 [source,csharp]
 ----
-route.MapGet("", async (IUnitOfWork uow) => Results.Ok(await uow.Entities.GetNoTrackingAsync()));
-route.MapGet("/{id:int}", async (int id, IUnitOfWork uow) => { /* by id */ });
-route.MapPost("", async (EntityDto dto, IUnitOfWork uow) => { /* create */ });
-route.MapPut("/{id:int}", async (int id, EntityDto dto, IUnitOfWork uow) => { /* update */ });
-route.MapDelete("/{id:int}", async (int id, IUnitOfWork uow) => { /* delete */ });
-route.MapGet("/overview", async (string? filter, bool? onlyActive, IUnitOfWork uow) => { /* report */ });
+private static EntityName ToEntity(EntityDto dto)
+{
+    return new EntityName
+    {
+        Id = dto.Id,
+        Name = dto.Name,
+        Type = dto.Type
+    };
+}
+
+private static EntityDto? ToDto(EntityName? entity)
+{
+    if (entity is null)
+        return null;
+
+    return new EntityDto(entity.Id, entity.Name, entity.Type);
+}
+
+private static IList<EntityDto>? ToDto(IList<EntityName>? entities)
+{
+    if (entities is null)
+        return null;
+
+    return entities.Select(x => ToDto(x)!).ToList();
+}
 ----
 
-=== API Fehlerbehandlung
+Mapper-Regeln:
 
-* 400 bei ungueltigen Requests
-* 404 wenn Ressource fehlt
-* 201 bei Create
-* 204 bei erfolgreichem Update/Delete ohne Body
+* `ToDto(Entity?)` gibt `null` zurueck, wenn Entity nicht gefunden wurde
+* Listen immer ueber `Select(...).ToList()` abbilden
+* Im `POST` und `PUT` keine Roh-Entities aus dem Request verwenden
+
+=== Endpoint-Gruppe aufbauen
+
+[source,csharp]
+----
+public static void MapEntityEndpoints(this IEndpointRouteBuilder app, string baseRoute)
+{
+    var route = app.MapGroup(baseRoute).WithTags("Entity");
+
+    // route.MapGet...
+    // route.MapPost...
+}
+----
+
+=== Request-Parameter in Minimal APIs
+
+* Path-Parameter: `"/{id:int}"` + Lambda-Argument `int id`
+* Query-Parameter: `[FromQuery(Name = "filter")] string? filter`
+* Body-Parameter: komplexe Typen wie `EntityDto dto`
+* Services per DI: z.B. `IUnitOfWork uow`
+
+[source,csharp]
+----
+route.MapGet("/overview", async (
+    [FromQuery(Name = "filter")] string? filter,
+    [FromQuery(Name = "onlyActive")] bool? onlyActive,
+    IUnitOfWork uow) =>
+{
+    var data = await uow.Entities.GetOverviewAsync(filter, onlyActive);
+    return Results.Ok(data);
+});
+----
+
+=== GET alle (`GET /entities`)
+
+Zweck: alle Datensaetze laden (read-only).
+
+[source,csharp]
+----
+route.MapGet("", async (IUnitOfWork uow) =>
+    {
+        var dtos = ToDto(await uow.Entities.GetNoTrackingAsync());
+        return Results.Ok(dtos);
+    })
+    .WithName("GetEntities")
+    .Produces<List<EntityDto>>(StatusCodes.Status200OK);
+----
+
+=== GET by id (`GET /entities/{id}`)
+
+Zweck: genau einen Datensatz per Path-Parameter laden.
+
+[source,csharp]
+----
+route.MapGet("/{id:int}", async (int id, IUnitOfWork uow) =>
+    {
+        var dto = ToDto(await uow.Entities.GetByIdAsync(id));
+
+        if (dto is null)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "Entity not found",
+                detail: $"No entity found with ID {id}");
+        }
+
+        return Results.Ok(dto);
+    })
+    .WithName("GetEntity")
+    .Produces<EntityDto>(StatusCodes.Status200OK)
+    .ProducesProblem(StatusCodes.Status404NotFound);
+----
+
+=== POST create (`POST /entities`)
+
+Zweck: neuen Datensatz anlegen.
+
+[source,csharp]
+----
+route.MapPost("", async (EntityDto dto, IUnitOfWork uow) =>
+    {
+        if (dto.Id != 0)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Invalid request",
+                detail: "The ID in the request body must be 0");
+        }
+
+        var entity = ToEntity(dto);
+        await uow.Entities.AddAsync(entity);
+        await uow.SaveChangesAsync();
+
+        var createdDto = ToDto(await uow.Entities.GetByIdAsync(entity.Id));
+        return Results.Created($"{baseRoute}/{entity.Id}", createdDto);
+    })
+    .WithValidation<EntityDto>()
+    .WithName("AddEntity")
+    .Produces<EntityDto>(StatusCodes.Status201Created)
+    .ProducesProblem(StatusCodes.Status400BadRequest);
+----
+
+=== PUT update (`PUT /entities/{id}`)
+
+Zweck: bestehenden Datensatz ersetzen/aktualisieren.
+
+[source,csharp]
+----
+route.MapPut("/{id:int}", async (int id, EntityDto dto, IUnitOfWork uow) =>
+    {
+        if (id != dto.Id)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Invalid request",
+                detail: "The ID in the URL does not match the ID in the request body");
+        }
+
+        var entity = await uow.Entities.GetByIdAsync(id);
+
+        if (entity is null)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "Entity not found",
+                detail: $"No entity found with ID {id}");
+        }
+
+        entity.Name = dto.Name;
+        entity.Type = dto.Type;
+
+        await uow.SaveChangesAsync();
+        return Results.NoContent();
+    })
+    .WithValidation<EntityDto>()
+    .WithName("UpdateEntity")
+    .Produces(StatusCodes.Status204NoContent)
+    .ProducesProblem(StatusCodes.Status400BadRequest)
+    .ProducesProblem(StatusCodes.Status404NotFound);
+----
+
+=== DELETE (`DELETE /entities/{id}`)
+
+Zweck: Datensatz loeschen.
+
+[source,csharp]
+----
+route.MapDelete("/{id:int}", async (int id, IUnitOfWork uow) =>
+    {
+        var entity = await uow.Entities.GetByIdAsync(id);
+
+        if (entity is null)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "Entity not found",
+                detail: $"No entity found with ID {id}");
+        }
+
+        uow.Entities.Remove(entity);
+        await uow.SaveChangesAsync();
+
+        return Results.NoContent();
+    })
+    .WithName("DeleteEntity")
+    .Produces(StatusCodes.Status204NoContent)
+    .ProducesProblem(StatusCodes.Status404NotFound);
+----
 
 == Validierung (FluentValidation)
 
