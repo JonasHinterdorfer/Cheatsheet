@@ -463,19 +463,6 @@ public class EntityDtoValidator : AbstractValidator<EntityDto>
 
 [source,csharp]
 ----
-using Base.Tools.CsvImport;
-using Core.Contracts;
-using Core.Entities;
-using Import.ImportData;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Persistence;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 
 var builder = Host.CreateApplicationBuilder(args);
 
