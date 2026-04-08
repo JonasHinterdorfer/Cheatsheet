@@ -485,3 +485,34 @@ Tipps:
 * Duplikate über eindeutige Schlüssel erkennen
 * Großen Import in mehrere `SaveChangesAsync()` Blöcke teilen
 * Fehler pro Zeile sammeln statt sofort abbrechen (optional)
+
+=== Import mit Existing-Dictionary
+[source,csharp]
+----
+Console.WriteLine("Import Data");
+
+using (var scope = host.Services.CreateScope())
+{
+    var uow = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+    
+    var csvData = await new CsvImport<TModel>().ReadAsync("ImportData/Source.csv");
+    var cache = (await uow.Entities.GetAsync()).ToDictionary(e => e.UniqueKey, e => e);
+
+    csvData.Select(async item => 
+    {
+        if (!cache.TryGetValue(item.Identifier, out var entity))
+        {
+            entity = new TEntity { PropertyA = item.ValueA, PropertyB = item.ValueB };
+            await uow.Entities.AddAsync(entity);
+            cache.Add(item.Identifier, entity);
+        }
+        
+        entity.PropertyA = item.ValueA;
+        return entity;
+    }).ToList(); // .ToList() erzwingt die Iteration durch die Daten
+
+    await uow.SaveChangesAsync();
+}
+----
+
+
