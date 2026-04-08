@@ -452,36 +452,53 @@ public class EntityDtoValidator : AbstractValidator<EntityDto>
 }
 ----
 
-== Import-Pipeline Muster
-
-=== Stabiler Ablauf
-
-. Datei lesen (CSV/JSON)
-. Zeilen validieren
-. Referenzen auflösen (Lookup Tabellen)
-. Neue Datensätze erzeugen oder bestehende aktualisieren
-. In Batches speichern
-. Abschlussbericht ausgeben
-
-=== Import Template
+== CSV Import
 
 [source,csharp]
 ----
-foreach (var row in importedRows)
-{
-    var existing = await repository.GetAsync(x => x.ExternalKey == row.ExternalKey);
+using Base.Tools.CsvImport;
+using Core.Contracts;
+using Core.Entities;
+using Import.ImportData;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Persistence;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 
-    if (!existing.Any())
-    {
-        await repository.AddAsync(new EntityName { ExternalKey = row.ExternalKey, Name = row.Name });
-    }
+var builder = Host.CreateApplicationBuilder(args);
+
+var configuration = builder.Configuration;
+var connectionString = configuration.GetConnectionString("DefaultConnection")
+    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+
+builder.Services
+    .AddDbContext<ApplicationDbContext>(options =>
+        options.UseSqlServer(connectionString))
+    .AddScoped<IUnitOfWork, UnitOfWork>();
+
+var host = builder.Build();
+
+Console.WriteLine("Migrate Database");
+
+using (var scope = host.Services.CreateScope())
+{
+    var uow = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+    await uow.DeleteDatabaseAsync();
+    await uow.MigrateDatabaseAsync();
 }
 
-await uow.SaveChangesAsync();
-----
+Console.WriteLine("Import Data");
 
-Tipps:
+using (var scope = host.Services.CreateScope())
+{
+    var uow = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
 
+<<<<<<< Updated upstream
 * Duplikate über eindeutige Schlüssel erkennen
 * Großen Import in mehrere `SaveChangesAsync()` Blöcke teilen
 * Fehler pro Zeile sammeln statt sofort abbrechen (optional)
@@ -499,6 +516,13 @@ using (var scope = host.Services.CreateScope())
     var cache = (await uow.Entities.GetAsync()).ToDictionary(e => e.UniqueKey, e => e);
 
     csvData.Select(async item => 
+=======
+    var csvData = await new CsvImport<TModel>().ReadAsync("ImportData/Source.csv");
+    var cache = (await uow.Entities.GetAsync()).ToDictionary(e => e.UniqueKey, e => e);
+
+    // LINQ-Pipeline statt foreach
+    var pending = csvData.Select(async item =>
+>>>>>>> Stashed changes
     {
         if (!cache.TryGetValue(item.Identifier, out var entity))
         {
@@ -506,13 +530,27 @@ using (var scope = host.Services.CreateScope())
             await uow.Entities.AddAsync(entity);
             cache.Add(item.Identifier, entity);
         }
+<<<<<<< Updated upstream
         
+=======
+
+>>>>>>> Stashed changes
         entity.PropertyA = item.ValueA;
         return entity;
     }).ToList(); // .ToList() erzwingt die Iteration durch die Daten
 
+<<<<<<< Updated upstream
     await uow.SaveChangesAsync();
 }
 ----
 
 
+=======
+    await Task.WhenAll(pending);
+
+    await uow.SaveChangesAsync();
+}
+
+Console.WriteLine("done");
+----
+>>>>>>> Stashed changes
