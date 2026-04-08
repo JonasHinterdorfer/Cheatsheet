@@ -498,31 +498,11 @@ using (var scope = host.Services.CreateScope())
 {
     var uow = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
 
-<<<<<<< Updated upstream
-* Duplikate über eindeutige Schlüssel erkennen
-* Großen Import in mehrere `SaveChangesAsync()` Blöcke teilen
-* Fehler pro Zeile sammeln statt sofort abbrechen (optional)
-
-=== Import mit Existing-Dictionary
-[source,csharp]
-----
-Console.WriteLine("Import Data");
-
-using (var scope = host.Services.CreateScope())
-{
-    var uow = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
-    
-    var csvData = await new CsvImport<TModel>().ReadAsync("ImportData/Source.csv");
-    var cache = (await uow.Entities.GetAsync()).ToDictionary(e => e.UniqueKey, e => e);
-
-    csvData.Select(async item => 
-=======
     var csvData = await new CsvImport<TModel>().ReadAsync("ImportData/Source.csv");
     var cache = (await uow.Entities.GetAsync()).ToDictionary(e => e.UniqueKey, e => e);
 
     // LINQ-Pipeline statt foreach
     var pending = csvData.Select(async item =>
->>>>>>> Stashed changes
     {
         if (!cache.TryGetValue(item.Identifier, out var entity))
         {
@@ -530,22 +510,10 @@ using (var scope = host.Services.CreateScope())
             await uow.Entities.AddAsync(entity);
             cache.Add(item.Identifier, entity);
         }
-<<<<<<< Updated upstream
-        
-=======
-
->>>>>>> Stashed changes
         entity.PropertyA = item.ValueA;
         return entity;
     }).ToList(); // .ToList() erzwingt die Iteration durch die Daten
 
-<<<<<<< Updated upstream
-    await uow.SaveChangesAsync();
-}
-----
-
-
-=======
     await Task.WhenAll(pending);
 
     await uow.SaveChangesAsync();
@@ -553,4 +521,3 @@ using (var scope = host.Services.CreateScope())
 
 Console.WriteLine("done");
 ----
->>>>>>> Stashed changes
