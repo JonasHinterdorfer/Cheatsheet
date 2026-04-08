@@ -21,20 +21,6 @@
 :!chapter-signifier:
 :imagesdir: resources
 
-== Ziel
-
-Dieser Cheatsheet ist bewusst allgemein gehalten.
-Er hilft dir, typische Schul-/Uebungsaufgaben mit einer mehrschichtigen C#-Architektur schnell und sauber umzusetzen.
-
-Er deckt ab:
-
-* Projektstruktur (Core, Persistence, API, Import/Tools)
-* EF Core mit Fluent API
-* Repository + UnitOfWork
-* REST Endpoints + Validierung
-* Reporting/Overview Queries
-* Import aus Dateien
-
 == Architektur
 
 [source,text]
