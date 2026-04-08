@@ -120,6 +120,27 @@ dotnet ef migrations add InitialCreate --project .\Persistence\Persistence.cspro
 dotnet ef database update --project .\Persistence\Persistence.csproj --startup-project .\WebAPI\WebAPI.csproj
 ----
 
+
+Im Package Manager:
+
+[source,powershell]
+----
+Add-Migration InitialCreate -Project Persistence -StartupProject Import
+
+Update-Database -Project Persistence -StartupProject Import
+----
+
+
+Sqlite Installation:
+
+[source,powershell]
+----
+dotnet add package Microsoft.EntityFrameworkCore.Sqlite
+# Die Design-Tools für Migrationen (Add-Migration, etc.)
+5 dotnet add package Microsoft.EntityFrameworkCore.Design
+----
+
+
 == Repository + UnitOfWork Muster
 
 === Contracts in Core
