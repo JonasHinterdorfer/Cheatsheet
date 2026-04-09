@@ -451,7 +451,9 @@ public class EntityDtoValidator : AbstractValidator<EntityDto>
         RuleFor(x => x.Name)
             .NotEmpty()
             .MinimumLength(3)
-            .MaximumLength(100);
+            .MaximumLength(100)
+            .Matches("^[a-zA-Z0-9 ]+$")
+            .WithMessage("Name can only contain letters, numbers and spaces.");
 
         RuleFor(x => x.Type)
             .NotEmpty();
@@ -459,11 +461,66 @@ public class EntityDtoValidator : AbstractValidator<EntityDto>
 }
 ----
 
+== WebAPI Program Setup
+
+[source,csharp]
+----
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+builder.Services.AddProblemDetails();
+
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        policy.AllowAnyHeader().AllowAnyOrigin().AllowAnyMethod();
+    });
+});
+
+builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+// Falls UnitOfWork weitere Services benötigt, diese hier ebenfalls registrieren (z.B. IAnotherRepository)
+
+var configuration = ConfigurationHelper.GetConfiguration();
+var connectionString = configuration.GetConnectionString("DefaultConnection")
+    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+    options.UseSqlServer(connectionString));
+
+builder.Services.AddValidatorsFromAssemblyContaining<Program>();
+
+var app = builder.Build();
+
+app.UseExceptionHandler();
+app.UseStatusCodePages();
+app.UseCors();
+
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+
+app.UseHttpsRedirection();
+
+// Minimal API Endpoints (Falls gewünscht, ansonsten in Extension-Methoden kapseln) einfach vom Template oben nehmen und statt route direkt app verwenden
+app.MapGet("/ping", () => "pong")
+    .WithName("Ping")
+    .WithTags("Health");
+
+// Endpoint-Mapping in Extension-Methoden kapseln, damit Program.cs sauber bleibt, falls mehrere Entities/Endpunkt-Gruppen existieren
+app.MapEntityEndpoints("/api/entity");
+app.MapAnotherEntityEndpoints("/api/another-entity");
+
+app.Run();
+----
+
 == CSV Import
 
 [source,csharp]
 ----
-
 var builder = Host.CreateApplicationBuilder(args);
 
 var configuration = builder.Configuration;
@@ -509,9 +566,129 @@ using (var scope = host.Services.CreateScope())
     }).ToList(); // .ToList() erzwingt die Iteration durch die Daten
 
     await Task.WhenAll(pending);
+}
+----
 
+Falls das nicht funktioniert, hier noch eine weitere Variante:
+
+[source,csharp]
+----
+using (var scope = host.Services.CreateScope())
+{
+    var uow = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+
+    var entitiesCsv = await new CsvImport<Entity>().ReadAsync("ImportData/Entity.csv");
+
+    var entities = entitiesCsv.Select(x =>
+    {
+        return new Entity
+        {
+            PropertyA = x.PropertyA,
+            PropertyB = x.PropertyB,
+        };
+    }).ToList();
+
+    await uow.Entities.AddRangeAsync(entities);
     await uow.SaveChangesAsync();
 }
+----
 
-Console.WriteLine("done");
+== Unit Tests
+
+=== XUnit
+
+[source,csharp]
+----
+using Xunit;
+using YourProject.Services;
+namespace YourProject.Tests;
+
+public class YourServiceTests
+{
+    private readonly IYourService _yourService;
+
+    public YourServiceTests()
+    {
+        _yourService = new YourService();
+    }
+
+    [Fact]
+    public void YourMethod_ShouldReturnExpectedResult()
+    {
+        // Arrange
+        var input = ...;
+
+        // Act
+        var result = _yourService.YourMethod(input);
+
+        // Assert
+        Assert.Equal(expectedResult, result);
+    }
+}
+----
+
+=== NUnit
+
+[source,csharp]
+----
+using NUnit.Framework;
+using YourProject.Services;
+namespace YourProject.Tests;
+
+public class YourServiceTests
+{
+    private IYourService _yourService;
+
+    [SetUp]
+    public void Setup()
+    {
+        _yourService = new YourService();
+    }
+
+    [Test]
+    public void YourMethod_ShouldReturnExpectedResult()
+    {
+        // Arrange
+        var input = ...;
+
+        // Act
+        var result = _yourService.YourMethod(input);
+
+        // Assert
+        Assert.AreEqual(expectedResult, result);
+    }
+}
+----
+
+=== FluentAssertions
+
+[source,csharp]
+----
+using FluentAssertions;
+using Xunit;
+using YourProject.Services;
+namespace YourProject.Tests;
+
+public class YourServiceTests
+{
+    private readonly IYourService _yourService;
+
+    public YourServiceTests()
+    {
+        _yourService = new YourService();
+    }
+
+    [Fact]
+    public void YourMethod_ShouldReturnExpectedResult()
+    {
+        // Arrange
+        var input = ...;
+
+        // Act
+        var result = _yourService.YourMethod(input);
+
+        // Assert
+        result.Should().Be(expectedResult);
+    }
+}
 ----
