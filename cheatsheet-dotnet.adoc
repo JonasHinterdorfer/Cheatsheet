@@ -152,6 +152,12 @@ public interface IEntityRepository : IGenericRepository<EntityName>
     Task<IList<EntityOverview>> GetOverviewAsync(string? filter, bool? onlyActive);
 }
 
+public interface IBaseUnitOfWork : IDisposable, IAsyncDisposable
+{
+    Task<ITransaction> BeginTransactionAsync();
+    Task<int> SaveChangesAsync();
+}
+
 public interface IUnitOfWork : IBaseUnitOfWork
 {
     IEntityRepository Entities { get; }
@@ -358,12 +364,15 @@ route.MapPost("", async (EntityDto dto, IUnitOfWork uow) =>
                 detail: "The ID in the request body must be 0");
         }
 
-        var entity = ToEntity(dto);
-        await uow.Entities.AddAsync(entity);
-        await uow.SaveChangesAsync();
+        using (var trans = await uow.BeginTransactionAsync())
+        {
+            var entity = ToEntity(dto);
+            await uow.Entities.AddAsync(entity);
+            await trans.CommitTransactionAsync();
 
-        var createdDto = ToDto(await uow.Entities.GetByIdAsync(entity.Id));
-        return Results.Created($"{baseRoute}/{entity.Id}", createdDto);
+            var createdDto = ToDto(await uow.Entities.GetByIdAsync(entity.Id));
+            return Results.Created($"{baseRoute}/{entity.Id}", createdDto);
+        }
     })
     .WithValidation<EntityDto>()
     .WithName("AddEntity")
@@ -387,20 +396,24 @@ route.MapPut("/{id:int}", async (int id, EntityDto dto, IUnitOfWork uow) =>
                 detail: "The ID in the URL does not match the ID in the request body");
         }
 
-        var entity = await uow.Entities.GetByIdAsync(id);
-
-        if (entity is null)
+        using (var trans = await uow.BeginTransactionAsync())
         {
-            return Results.Problem(
-                statusCode: StatusCodes.Status404NotFound,
-                title: "Entity not found",
-                detail: $"No entity found with ID {id}");
+            var entity = await uow.Entities.GetByIdAsync(id);
+
+            if (entity is null)
+            {
+                return Results.Problem(
+                    statusCode: StatusCodes.Status404NotFound,
+                    title: "Entity not found",
+                    detail: $"No entity found with ID {id}");
+            }
+
+            entity.Name = dto.Name;
+            entity.Type = dto.Type;
+
+            await trans.CommitTransactionAsync();
         }
 
-        entity.Name = dto.Name;
-        entity.Type = dto.Type;
-
-        await uow.SaveChangesAsync();
         return Results.NoContent();
     })
     .WithValidation<EntityDto>()
