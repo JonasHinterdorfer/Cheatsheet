@@ -48,6 +48,69 @@ Import/Console
   - Über Repositories speichern
 ----
 
+== Logging
+
+In .NET ist Logging über `Microsoft.Extensions.Logging` bereits integriert. Kein zusätzliches NuGet-Paket nötig.
+
+=== Konfiguration in appsettings.json
+
+[source,json]
+----
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning",
+      "Microsoft.EntityFrameworkCore": "Warning"
+    }
+  }
+}
+----
+
+=== Verwendung per Dependency Injection
+
+[source,csharp]
+----
+public class EntityRepository : GenericRepository<EntityName>, IEntityRepository
+{
+    private readonly ILogger<EntityRepository> _logger;
+
+    public EntityRepository(
+        ApplicationDbContext dbContext,
+        ILogger<EntityRepository> logger) : base(dbContext)
+    {
+        _logger = logger;
+    }
+
+    public async Task<IList<EntityOverview>> GetOverviewAsync(string? filter)
+    {
+        _logger.LogInformation("Query with filter={Filter}", filter);
+
+        // ...
+    }
+}
+----
+
+=== Log-Level
+
+|===
+| Level | Verwendung
+
+| Trace | Detaillierte Ablaufverfolgung, nur für Entwicklung
+| Debug | Informationen für Debugging
+| Information | Normale Anwendungsabläufe
+| Warning | Ungewöhnliche, aber behandelbare Ereignisse
+| Error | Fehler, die einen Vorgang verhindern
+| Critical | Schwerwiegende Fehler, die sofortige Aufmerksamkeit erfordern
+|===
+
+=== Regeln
+
+* Logger immer über `ILogger<T>` im Konstruktor injizieren (nicht `LoggerFactory` direkt verwenden)
+* Log-Level in `appsettings.Development.json` und `appsettings.json` separat konfigurieren
+* Structured Logging nutzen: `LogInformation("User {UserId} logged in", userId)` statt String-Interpolation
+* Im Development: `Information` oder `Debug`; in Production: `Warning` oder `Error`
+
 == Entity Template
 
 [source,csharp]
