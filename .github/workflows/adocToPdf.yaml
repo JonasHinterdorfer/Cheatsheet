@@ -16,20 +16,20 @@ permissions:
 jobs:
   convert-to-pdf:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-        
+
       - name: Install AsciiDoctor and dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y ruby-full
           sudo gem install asciidoctor asciidoctor-pdf rouge
-          
-      - name: Convert AsciiDoc to PDF original
+
+      - name: Convert cheatsheet.adoc to PDF
         run: |
           asciidoctor-pdf \
             -r asciidoctor-pdf \
@@ -40,7 +40,7 @@ jobs:
             -o output.pdf \
             cheatsheet.adoc
 
-      - name: Convert AsciiDoc to PDF original
+      - name: Convert cheatsheet-dotnet.adoc to PDF
         run: |
           asciidoctor-pdf \
             -r asciidoctor-pdf \
@@ -48,25 +48,25 @@ jobs:
             -a source-highlighter=rouge \
             -a rouge-style=github \
             -a pdf-theme=default \
-            -o chatsheet-dotnet.pdf \
+            -o cheatsheet-dotnet.pdf \
             cheatsheet-dotnet.adoc
-            
-      - name: Upload PDF artifact
+
+      - name: Upload cheatsheet PDF artifact
         uses: actions/upload-artifact@v4
         with:
           name: cheatsheet-pdf
           path: output.pdf
 
-      - name: Upload PDF artifact
+      - name: Upload cheatsheet-dotnet PDF artifact
         uses: actions/upload-artifact@v4
         with:
-          name: cheatsheet-pdf-no-text
-          path: output-no-text.pdf
+          name: cheatsheet-dotnet-pdf
+          path: cheatsheet-dotnet.pdf
 
-      - name: Commit and push PDF
+      - name: Commit and push PDFs
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add output.pdf
-          git add chatsheet-dotnet.pdf
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Update output.pdf and output-no-text.pdf [skip ci]" && git push)
+          git add output.pdf cheatsheet-dotnet.pdf
+          git diff --quiet && git diff --staged --quiet || \
+            (git commit -m "Update output.pdf and cheatsheet-dotnet.pdf [skip ci]" && git push)
