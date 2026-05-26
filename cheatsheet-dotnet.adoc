@@ -225,8 +225,12 @@ public interface IUnitOfWork : IBaseUnitOfWork
 ----
 public class UnitOfWork : BaseUnitOfWork, IUnitOfWork
 {
-    public UnitOfWork(ApplicationDbContext dbContext) : base(dbContext)
+    private readonly ILogger<UnitOfWork> _logger;
+
+    public UnitOfWork(ApplicationDbContext dbContext, ILogger<UnitOfWork> logger) : base(dbContext)
     {
+        _logger = logger;
+        _logger.LogInformation("[UnitOfWork] Initializing repositories");
         Entities = new EntityRepository(dbContext);
         Others = new AnotherRepository(dbContext);
     }
@@ -263,15 +267,22 @@ public record EntityOverview(
 ----
 public async Task<IList<EntityOverview>> GetOverviewAsync(string? filter, bool? onlyActive)
 {
+    _logger.LogInformation("[Repository] GetOverviewAsync called with filter={Filter}, onlyActive={OnlyActive}", filter, onlyActive);
     var query = _dbContext.Entities.AsNoTracking().AsQueryable();
 
     if (!string.IsNullOrWhiteSpace(filter))
+    {
+        _logger.LogDebug("[Repository] Applying filter: {Filter}", filter);
         query = query.Where(x => x.Name.Contains(filter));
+    }
 
     if (onlyActive == true)
+    {
+        _logger.LogDebug("[Repository] Filtering only active entities");
         query = query.Where(x => x.ActiveUntil == null || x.ActiveUntil >= DateTime.Today);
+    }
 
-    return await query
+    var result = await query
         .Select(x => new EntityOverview(
             x.Id,
             x.Name,
@@ -279,6 +290,9 @@ public async Task<IList<EntityOverview>> GetOverviewAsync(string? filter, bool? 
             x.Children.Count))
         .OrderBy(x => x.DisplayName)
         .ToListAsync();
+
+    _logger.LogInformation("[Repository] GetOverviewAsync returned {Count} items", result.Count);
+    return result;
 }
 ----
 
@@ -297,8 +311,9 @@ Halte Mapping zentral in der Endpoint-Klasse (oder in einer separaten Mapper-Kla
 
 [source,csharp]
 ----
-private static EntityName ToEntity(EntityDto dto)
+private static EntityName ToEntity(EntityDto dto, ILogger logger)
 {
+    logger.LogInformation("[Mapper] ToEntity: id={Id}, name={Name}", dto.Id, dto.Name);
     return new EntityName
     {
         Id = dto.Id,
@@ -307,20 +322,28 @@ private static EntityName ToEntity(EntityDto dto)
     };
 }
 
-private static EntityDto? ToDto(EntityName? entity)
+private static EntityDto? ToDto(EntityName? entity, ILogger logger)
 {
     if (entity is null)
+    {
+        logger.LogInformation("[Mapper] ToDto: entity is null");
         return null;
+    }
 
+    logger.LogInformation("[Mapper] ToDto: id={Id}, name={Name}", entity.Id, entity.Name);
     return new EntityDto(entity.Id, entity.Name, entity.Type);
 }
 
-private static IList<EntityDto>? ToDto(IList<EntityName>? entities)
+private static IList<EntityDto>? ToDto(IList<EntityName>? entities, ILogger logger)
 {
     if (entities is null)
+    {
+        logger.LogInformation("[Mapper] ToDto list: entities is null");
         return null;
+    }
 
-    return entities.Select(x => ToDto(x)!).ToList();
+    logger.LogInformation("[Mapper] ToDto list: mapping {Count} entities", entities.Count);
+    return entities.Select(x => ToDto(x, logger)!).ToList();
 }
 ----
 
@@ -355,9 +378,12 @@ public static void MapEntityEndpoints(this IEndpointRouteBuilder app, string bas
 route.MapGet("/overview", async (
     [FromQuery(Name = "filter")] string? filter,
     [FromQuery(Name = "onlyActive")] bool? onlyActive,
-    IUnitOfWork uow) =>
+    IUnitOfWork uow,
+    ILogger<Program> logger) =>
 {
+    logger.LogInformation("[API GET /overview] filter={Filter}, onlyActive={OnlyActive}", filter, onlyActive);
     var data = await uow.Entities.GetOverviewAsync(filter, onlyActive);
+    logger.LogInformation("[API GET /overview] Returning {Count} items", data.Count);
     return Results.Ok(data);
 });
 ----
@@ -368,9 +394,11 @@ Zweck: alle Datensaetze laden (read-only).
 
 [source,csharp]
 ----
-route.MapGet("", async (IUnitOfWork uow) =>
+route.MapGet("", async (IUnitOfWork uow, ILogger<Program> logger) =>
     {
-        var dtos = ToDto(await uow.Entities.GetNoTrackingAsync());
+        logger.LogInformation("[API GET] Fetching all entities");
+        var dtos = ToDto(await uow.Entities.GetNoTrackingAsync(), logger);
+        logger.LogInformation("[API GET] Returning {Count} entities", dtos?.Count ?? 0);
         return Results.Ok(dtos);
     })
     .WithName("GetEntities")
@@ -383,18 +411,21 @@ Zweck: genau einen Datensatz per Path-Parameter laden.
 
 [source,csharp]
 ----
-route.MapGet("/{id:int}", async (int id, IUnitOfWork uow) =>
+route.MapGet("/{id:int}", async (int id, IUnitOfWork uow, ILogger<Program> logger) =>
     {
-        var dto = ToDto(await uow.Entities.GetByIdAsync(id));
+        logger.LogInformation("[API GET /{Id}] Fetching entity", id);
+        var dto = ToDto(await uow.Entities.GetByIdAsync(id), logger);
 
         if (dto is null)
         {
+            logger.LogWarning("[API GET /{Id}] Entity not found", id);
             return Results.Problem(
                 statusCode: StatusCodes.Status404NotFound,
                 title: "Entity not found",
                 detail: $"No entity found with ID {id}");
         }
 
+        logger.LogInformation("[API GET /{Id}] Entity found", id);
         return Results.Ok(dto);
     })
     .WithName("GetEntity")
@@ -408,10 +439,12 @@ Zweck: neuen Datensatz anlegen.
 
 [source,csharp]
 ----
-route.MapPost("", async (EntityDto dto, IUnitOfWork uow) =>
+route.MapPost("", async (EntityDto dto, IUnitOfWork uow, ILogger<Program> logger) =>
     {
+        logger.LogInformation("[API POST] Creating entity: {@Dto}", dto);
         if (dto.Id != 0)
         {
+            logger.LogWarning("[API POST] Invalid request: ID must be 0, got {Id}", dto.Id);
             return Results.Problem(
                 statusCode: StatusCodes.Status400BadRequest,
                 title: "Invalid request",
@@ -420,11 +453,12 @@ route.MapPost("", async (EntityDto dto, IUnitOfWork uow) =>
 
         using (var trans = await uow.BeginTransactionAsync())
         {
-            var entity = ToEntity(dto);
+            var entity = ToEntity(dto, logger);
             await uow.Entities.AddAsync(entity);
             await trans.CommitTransactionAsync();
 
-            var createdDto = ToDto(await uow.Entities.GetByIdAsync(entity.Id));
+            logger.LogInformation("[API POST] Entity created with id: {Id}", entity.Id);
+            var createdDto = ToDto(await uow.Entities.GetByIdAsync(entity.Id), logger);
             return Results.Created($"{baseRoute}/{entity.Id}", createdDto);
         }
     })
@@ -440,10 +474,12 @@ Zweck: bestehenden Datensatz ersetzen/aktualisieren.
 
 [source,csharp]
 ----
-route.MapPut("/{id:int}", async (int id, EntityDto dto, IUnitOfWork uow) =>
+route.MapPut("/{id:int}", async (int id, EntityDto dto, IUnitOfWork uow, ILogger<Program> logger) =>
     {
+        logger.LogInformation("[API PUT /{Id}] Updating entity: {@Dto}", id, dto);
         if (id != dto.Id)
         {
+            logger.LogWarning("[API PUT /{Id}] ID mismatch: URL={UrlId}, Body={BodyId}", id, id, dto.Id);
             return Results.Problem(
                 statusCode: StatusCodes.Status400BadRequest,
                 title: "Invalid request",
@@ -456,6 +492,7 @@ route.MapPut("/{id:int}", async (int id, EntityDto dto, IUnitOfWork uow) =>
 
             if (entity is null)
             {
+                logger.LogWarning("[API PUT /{Id}] Entity not found", id);
                 return Results.Problem(
                     statusCode: StatusCodes.Status404NotFound,
                     title: "Entity not found",
@@ -464,6 +501,7 @@ route.MapPut("/{id:int}", async (int id, EntityDto dto, IUnitOfWork uow) =>
 
             entity.Name = dto.Name;
             entity.Type = dto.Type;
+            logger.LogInformation("[API PUT /{Id}] Entity updated", id);
 
             await trans.CommitTransactionAsync();
         }
@@ -483,12 +521,14 @@ Zweck: Datensatz loeschen.
 
 [source,csharp]
 ----
-route.MapDelete("/{id:int}", async (int id, IUnitOfWork uow) =>
+route.MapDelete("/{id:int}", async (int id, IUnitOfWork uow, ILogger<Program> logger) =>
     {
+        logger.LogInformation("[API DELETE /{Id}] Deleting entity", id);
         var entity = await uow.Entities.GetByIdAsync(id);
 
         if (entity is null)
         {
+            logger.LogWarning("[API DELETE /{Id}] Entity not found", id);
             return Results.Problem(
                 statusCode: StatusCodes.Status404NotFound,
                 title: "Entity not found",
@@ -497,6 +537,7 @@ route.MapDelete("/{id:int}", async (int id, IUnitOfWork uow) =>
 
         uow.Entities.Remove(entity);
         await uow.SaveChangesAsync();
+        logger.LogInformation("[API DELETE /{Id}] Entity deleted", id);
 
         return Results.NoContent();
     })
@@ -560,12 +601,15 @@ builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 
 var app = builder.Build();
 
+app.Logger.LogInformation("[Program] Application built, configuring middleware");
+
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 app.UseCors();
 
 if (app.Environment.IsDevelopment())
 {
+    app.Logger.LogInformation("[Program] Development environment detected, enabling Swagger");
     app.UseSwagger();
     app.UseSwaggerUI();
 }
@@ -573,7 +617,11 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 
 // Minimal API Endpoints (Falls gewünscht, ansonsten in Extension-Methoden kapseln) einfach vom Template oben nehmen und statt route direkt app verwenden
-app.MapGet("/ping", () => "pong")
+app.MapGet("/ping", (ILogger<Program> logger) =>
+    {
+        logger.LogInformation("[API GET /ping] Health check called");
+        return "pong";
+    })
     .WithName("Ping")
     .WithTags("Health");
 
@@ -601,23 +649,29 @@ builder.Services
 
 var host = builder.Build();
 
-Console.WriteLine("Migrate Database");
+var logger = host.Services.GetRequiredService<ILogger<Program>>();
+logger.LogInformation("[Import] Migrate Database");
 
 using (var scope = host.Services.CreateScope())
 {
     var uow = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+    logger.LogInformation("[Import] Deleting database...");
     await uow.DeleteDatabaseAsync();
+    logger.LogInformation("[Import] Migrating database...");
     await uow.MigrateDatabaseAsync();
+    logger.LogInformation("[Import] Database migration completed");
 }
 
-Console.WriteLine("Import Data");
+logger.LogInformation("[Import] Import Data");
 
 using (var scope = host.Services.CreateScope())
 {
     var uow = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
 
     var csvData = await new CsvImport<TModel>().ReadAsync("ImportData/Source.csv");
+    logger.LogInformation("[Import] Read {Count} rows from CSV", csvData.Count());
     var cache = (await uow.Entities.GetAsync()).ToDictionary(e => e.UniqueKey, e => e);
+    logger.LogInformation("[Import] Existing entities in cache: {Count}", cache.Count);
 
     // LINQ-Pipeline statt foreach
     var pending = csvData.Select(async item =>
@@ -627,12 +681,14 @@ using (var scope = host.Services.CreateScope())
             entity = new TEntity { PropertyA = item.ValueA, PropertyB = item.ValueB };
             await uow.Entities.AddAsync(entity);
             cache.Add(item.Identifier, entity);
+            logger.LogInformation("[Import] Added new entity: {Identifier}", item.Identifier);
         }
         entity.PropertyA = item.ValueA;
         return entity;
     }).ToList(); // .ToList() erzwingt die Iteration durch die Daten
 
     await Task.WhenAll(pending);
+    logger.LogInformation("[Import] Data import completed");
 }
 ----
 
@@ -643,8 +699,10 @@ Falls das nicht funktioniert, hier noch eine weitere Variante:
 using (var scope = host.Services.CreateScope())
 {
     var uow = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
 
     var entitiesCsv = await new CsvImport<Entity>().ReadAsync("ImportData/Entity.csv");
+    logger.LogInformation("[Import] Read {Count} rows from CSV", entitiesCsv.Count());
 
     var entities = entitiesCsv.Select(x =>
     {
@@ -657,6 +715,7 @@ using (var scope = host.Services.CreateScope())
 
     await uow.Entities.AddRangeAsync(entities);
     await uow.SaveChangesAsync();
+    logger.LogInformation("[Import] Imported {Count} entities", entities.Count);
 }
 ----
 
@@ -667,12 +726,14 @@ using (var scope = host.Services.CreateScope())
 [source,csharp]
 ----
 using Xunit;
+using Microsoft.Extensions.Logging;
 using YourProject.Services;
 namespace YourProject.Tests;
 
 public class YourServiceTests
 {
     private readonly IYourService _yourService;
+    private readonly ILogger<YourServiceTests> _logger = LoggerFactory.Create(b => b.AddConsole()).CreateLogger<YourServiceTests>();
 
     public YourServiceTests()
     {
@@ -684,12 +745,15 @@ public class YourServiceTests
     {
         // Arrange
         var input = ...;
+        _logger.LogInformation("[Test] Arrange completed");
 
         // Act
         var result = _yourService.YourMethod(input);
+        _logger.LogInformation("[Test] Act completed, result: {Result}", result);
 
         // Assert
         Assert.Equal(expectedResult, result);
+        _logger.LogInformation("[Test] Assert passed");
     }
 }
 ----
@@ -699,17 +763,20 @@ public class YourServiceTests
 [source,csharp]
 ----
 using NUnit.Framework;
+using Microsoft.Extensions.Logging;
 using YourProject.Services;
 namespace YourProject.Tests;
 
 public class YourServiceTests
 {
     private IYourService _yourService;
+    private ILogger<YourServiceTests> _logger = null!;
 
     [SetUp]
     public void Setup()
     {
         _yourService = new YourService();
+        _logger = LoggerFactory.Create(b => b.AddConsole()).CreateLogger<YourServiceTests>();
     }
 
     [Test]
@@ -717,12 +784,15 @@ public class YourServiceTests
     {
         // Arrange
         var input = ...;
+        _logger.LogInformation("[Test] Arrange completed");
 
         // Act
         var result = _yourService.YourMethod(input);
+        _logger.LogInformation("[Test] Act completed, result: {Result}", result);
 
         // Assert
         Assert.AreEqual(expectedResult, result);
+        _logger.LogInformation("[Test] Assert passed");
     }
 }
 ----
@@ -733,12 +803,14 @@ public class YourServiceTests
 ----
 using FluentAssertions;
 using Xunit;
+using Microsoft.Extensions.Logging;
 using YourProject.Services;
 namespace YourProject.Tests;
 
 public class YourServiceTests
 {
     private readonly IYourService _yourService;
+    private readonly ILogger<YourServiceTests> _logger = LoggerFactory.Create(b => b.AddConsole()).CreateLogger<YourServiceTests>();
 
     public YourServiceTests()
     {
@@ -750,12 +822,15 @@ public class YourServiceTests
     {
         // Arrange
         var input = ...;
+        _logger.LogInformation("[Test] Arrange completed");
 
         // Act
         var result = _yourService.YourMethod(input);
+        _logger.LogInformation("[Test] Act completed, result: {Result}", result);
 
         // Assert
         result.Should().Be(expectedResult);
+        _logger.LogInformation("[Test] Assert passed");
     }
 }
 ----
@@ -813,6 +888,7 @@ using Core.Contracts;
 using Core.Entities;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Microsoft.Extensions.Logging;
 using NSubstitute;
 using WebAPI.Endpoints;
 
@@ -823,6 +899,7 @@ public class EntityEndpointsTests : IClassFixture<CustomWebApplicationFactory>
     private readonly HttpClient         _client;
     private readonly IUnitOfWork        _uow;
     private readonly IEntityRepository  _entityRepo;
+    private readonly ILogger<EntityEndpointsTests> _logger = LoggerFactory.Create(b => b.AddConsole()).CreateLogger<EntityEndpointsTests>();
 
     public EntityEndpointsTests(CustomWebApplicationFactory factory)
     {
@@ -831,6 +908,7 @@ public class EntityEndpointsTests : IClassFixture<CustomWebApplicationFactory>
         _uow.ClearReceivedCalls();
         _entityRepo = Substitute.For<IEntityRepository>();
         _uow.Entities.Returns(_entityRepo);
+        _logger.LogInformation("[EndpointTest] Setup completed, mock repository initialized");
     }
 
     [Fact]
@@ -842,13 +920,16 @@ public class EntityEndpointsTests : IClassFixture<CustomWebApplicationFactory>
             new() { Id = 2, Name = "Beta" }
         };
         _entityRepo.GetNoTrackingAsync().ReturnsForAnyArgs(entities);
+        _logger.LogInformation("[Test] GetEntities setup: {Count} entities mocked", entities.Count);
 
         var response = await _client.GetAsync("/api/entity");
+        _logger.LogInformation("[Test] GetEntities response: {StatusCode}", response.StatusCode);
         var result   = await response.Content.ReadFromJsonAsync<List<EntityDto>>();
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         result.Should().HaveCount(2);
         result![0].Name.Should().Be("Alpha");
+        _logger.LogInformation("[Test] GetEntities assertions passed");
     }
 
     [Fact]
@@ -856,22 +937,28 @@ public class EntityEndpointsTests : IClassFixture<CustomWebApplicationFactory>
     {
         var entity = new EntityName { Id = 1, Name = "Alpha" };
         _entityRepo.GetByIdAsync(1).ReturnsForAnyArgs(entity);
+        _logger.LogInformation("[Test] GetEntity setup: entity mocked");
 
         var response = await _client.GetAsync("/api/entity/1");
+        _logger.LogInformation("[Test] GetEntity response: {StatusCode}", response.StatusCode);
         var result   = await response.Content.ReadFromJsonAsync<EntityDto>();
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         result!.Id.Should().Be(1);
+        _logger.LogInformation("[Test] GetEntity assertions passed");
     }
 
     [Fact]
     public async Task GetEntity_NonExistingId_Returns404()
     {
         _entityRepo.GetByIdAsync(99).ReturnsForAnyArgs((EntityName?)null);
+        _logger.LogInformation("[Test] GetEntity_NonExistingId setup: null mocked");
 
         var response = await _client.GetAsync("/api/entity/99");
+        _logger.LogInformation("[Test] GetEntity_NonExistingId response: {StatusCode}", response.StatusCode);
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        _logger.LogInformation("[Test] GetEntity_NonExistingId assertions passed");
     }
 
     [Fact]
@@ -879,24 +966,30 @@ public class EntityEndpointsTests : IClassFixture<CustomWebApplicationFactory>
     {
         var dto     = new EntityDto(0, "Alpha", "TypeA");
         var created = new EntityName { Id = 1, Name = "Alpha", Type = "TypeA" };
+        _logger.LogInformation("[Test] PostEntity setup: dto and entity mocked");
 
         _entityRepo.AddAsync(Arg.Any<EntityName>())
             .Returns(Task.FromResult<EntityEntry<EntityName>>(null!));
         _entityRepo.GetByIdAsync(Arg.Any<int>()).ReturnsForAnyArgs(created);
 
         var response = await _client.PostAsJsonAsync("/api/entity", dto);
+        _logger.LogInformation("[Test] PostEntity response: {StatusCode}", response.StatusCode);
 
         response.StatusCode.Should().Be(HttpStatusCode.Created);
+        _logger.LogInformation("[Test] PostEntity assertions passed");
     }
 
     [Fact]
     public async Task PostEntity_NonZeroId_ReturnsBadRequest()
     {
         var dto = new EntityDto(5, "Alpha", "TypeA");
+        _logger.LogInformation("[Test] PostEntity_NonZeroId setup: dto with id={Id}", dto.Id);
 
         var response = await _client.PostAsJsonAsync("/api/entity", dto);
+        _logger.LogInformation("[Test] PostEntity_NonZeroId response: {StatusCode}", response.StatusCode);
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        _logger.LogInformation("[Test] PostEntity_NonZeroId assertions passed");
     }
 
     [Fact]
@@ -905,20 +998,26 @@ public class EntityEndpointsTests : IClassFixture<CustomWebApplicationFactory>
         var existing = new EntityName { Id = 1, Name = "Old", Type = "TypeA" };
         var dto      = new EntityDto(1, "Alpha", "TypeA");
         _entityRepo.GetByIdAsync(1).ReturnsForAnyArgs(existing);
+        _logger.LogInformation("[Test] PutEntity setup: existing entity mocked");
 
         var response = await _client.PutAsJsonAsync("/api/entity/1", dto);
+        _logger.LogInformation("[Test] PutEntity response: {StatusCode}", response.StatusCode);
 
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        _logger.LogInformation("[Test] PutEntity assertions passed");
     }
 
     [Fact]
     public async Task PutEntity_IdMismatch_ReturnsBadRequest()
     {
         var dto = new EntityDto(2, "Alpha", "TypeA");
+        _logger.LogInformation("[Test] PutEntity_IdMismatch setup: URL id=1, body id={BodyId}", dto.Id);
 
         var response = await _client.PutAsJsonAsync("/api/entity/1", dto);
+        _logger.LogInformation("[Test] PutEntity_IdMismatch response: {StatusCode}", response.StatusCode);
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        _logger.LogInformation("[Test] PutEntity_IdMismatch assertions passed");
     }
 
     [Fact]
@@ -926,10 +1025,13 @@ public class EntityEndpointsTests : IClassFixture<CustomWebApplicationFactory>
     {
         var dto = new EntityDto(99, "Alpha", "TypeA");
         _entityRepo.GetByIdAsync(99).ReturnsForAnyArgs((EntityName?)null);
+        _logger.LogInformation("[Test] PutEntity_NotFound setup: null mocked");
 
         var response = await _client.PutAsJsonAsync("/api/entity/99", dto);
+        _logger.LogInformation("[Test] PutEntity_NotFound response: {StatusCode}", response.StatusCode);
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        _logger.LogInformation("[Test] PutEntity_NotFound assertions passed");
     }
 
     [Fact]
@@ -937,22 +1039,28 @@ public class EntityEndpointsTests : IClassFixture<CustomWebApplicationFactory>
     {
         var existing = new EntityName { Id = 1, Name = "Alpha" };
         _entityRepo.GetByIdAsync(1).ReturnsForAnyArgs(existing);
+        _logger.LogInformation("[Test] DeleteEntity setup: existing entity mocked");
 
         var response = await _client.DeleteAsync("/api/entity/1");
+        _logger.LogInformation("[Test] DeleteEntity response: {StatusCode}", response.StatusCode);
 
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);
         _entityRepo.Received(1).Remove(existing);
         await _uow.Received(1).SaveChangesAsync();
+        _logger.LogInformation("[Test] DeleteEntity assertions passed");
     }
 
     [Fact]
     public async Task DeleteEntity_NotFound_Returns404()
     {
         _entityRepo.GetByIdAsync(99).ReturnsForAnyArgs((EntityName?)null);
+        _logger.LogInformation("[Test] DeleteEntity_NotFound setup: null mocked");
 
         var response = await _client.DeleteAsync("/api/entity/99");
+        _logger.LogInformation("[Test] DeleteEntity_NotFound response: {StatusCode}", response.StatusCode);
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        _logger.LogInformation("[Test] DeleteEntity_NotFound assertions passed");
     }
 }
 ----
