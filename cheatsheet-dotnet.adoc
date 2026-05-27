@@ -231,13 +231,6 @@ public class UnitOfWork : BaseUnitOfWork, IUnitOfWork
 }
 ----
 
-=== Query-Regeln für gute Read-Methoden
-
-* Für reine Leseabfragen: `AsNoTracking()`
-* Erst filtern, dann projezieren
-* In Repository nur Datenlogik, keine API-Logik
-* Rückgabe für Listen: `IList<T>` oder `List<T>` konsistent halten
-
 == ReadModels / Overview-Objekte
 
 Nutze eigene Typen für Auswertungen statt Entities 1:1 nach außen zu geben.
@@ -490,8 +483,10 @@ route.MapPut("/{id:int}", async (int id, EntityDto dto, IUnitOfWork uow, ILogger
                     detail: $"No entity found with ID {id}");
             }
 
-            entity.Name = dto.Name;
-            entity.Type = dto.Type;
+            var newEntity = ToEntity(dto);
+
+            entity.Name = newEntity.Name;
+            entity.Type = newEntity.Type;
             logger.LogInformation("[API PUT /{Id}] Entity updated", id);
 
             await trans.CommitTransactionAsync();
@@ -581,6 +576,12 @@ builder.Services.AddCors(options =>
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 // Falls UnitOfWork weitere Services benötigt, diese hier ebenfalls registrieren (z.B. IAnotherRepository)
 
+builder.Services.AddLogging(loggingBuilder =>
+{
+    loggingBuilder.AddConsole();
+    loggingBuilder.SetMinimumLevel(LogLevel.Information);
+}); // Logging in Program.cs konfigurieren, damit es auch in der Startup-Phase funktioniert
+
 var configuration = ConfigurationHelper.GetConfiguration();
 var connectionString = configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
@@ -630,31 +631,86 @@ app.Run();
 var builder = Host.CreateApplicationBuilder(args);
 
 var configuration = builder.Configuration;
-var connectionString = configuration.GetConnectionString("DefaultConnection")
-    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+
+var connectionString = configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
 
 builder.Services
     .AddDbContext<ApplicationDbContext>(options =>
         options.UseSqlServer(connectionString))
     .AddScoped<IUnitOfWork, UnitOfWork>();
 
-var host = builder.Build();
-
+var host   = builder.Build();
 var logger = host.Services.GetRequiredService<ILogger<Program>>();
 logger.LogInformation("[Import] Migrate Database");
 
 using (var scope = host.Services.CreateScope())
 {
     var uow = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
-    logger.LogInformation("[Import] Deleting database...");
     await uow.DeleteDatabaseAsync();
-    logger.LogInformation("[Import] Migrating database...");
+    await uow.CreateDatabaseAsync();
     await uow.MigrateDatabaseAsync();
-    logger.LogInformation("[Import] Database migration completed");
 }
 
 logger.LogInformation("[Import] Import Data");
 
+using (var scope = host.Services.CreateScope())
+{
+    var uow = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+
+    var entityCsv = await new CsvImport<EntityCsv>().ReadAsync("ImportData/entities.txt");
+    logger.LogInformation("[Import] Read {Count} rows from CSV", entityCsv.Count());
+    
+    // Caches für bereits existierende Daten, um Duplikate zu vermeiden (je nachdem, welche Daten importiert werden, kann das notwendig sein)
+    var entityCache = (await uow.Entities.GetAsync()).ToDictionary(e => e.UniqueKey, e => e);
+    logger.LogInformation("[Import] Existing entities in cache: {Count}", entityCache.Count);
+    var otherEntityCache = (await uow.OtherEntities.GetAsync()).ToDictionary(e => e.UniqueKey, e => e);
+    logger.LogInformation("[Import] Existing other entities in cache: {Count}", otherEntityCache.Count);
+
+    var entities = entityCsv.Select(x =>
+    {
+        // Beispiel: Wenn die CSV Daten enthält, die mit anderen Entities verknüpft werden müssen, diese zuerst im Cache prüfen und ggf. anlegenen, bevor die Hauptentity erstellt wird. So werden Duplikate vermieden und Beziehungen korrekt gesetzt
+        if (!otherEntityCache.TryGetValue(x.OtherEntity, out OtherEntity? otherEntity))
+        {
+            otherEntity = new OtherEntity()
+            {
+                PropertyA = x.PropertyA
+            };
+            otherEntityCache.Add(x.OtherEntity, otherEntity);
+        }
+
+        // Hauptentity nur anlegen, wenn sie noch nicht existiert (z.B. anhand eines Unique Keys), ansonsten null zurückgeben, damit sie später gefiltert wird
+        if (!entityCache.TryGetValue(x.Entity, out Entity? entity))
+        {
+            entity = new Entity()
+            {
+                PropertyA = x.PropertyA,
+                PropertyB = x.PropertyB,
+                OtherEntity = otherEntity // Beziehung zur anderen Entity setzen, damit sie korrekt in der Datenbank landet
+            };
+            entityCache.Add(x.Entity, entity);
+            
+            return entity;
+        }
+        
+        return null;
+    }).Where(x => x != null).Select(x => (Entity)x!); // Null-Filterung, damit nur neue Entities importiert werden
+
+    // Alle Änderungen in einer Transaktion speichern, damit bei Fehlern nicht nur ein Teil der Daten importiert wird
+    using (var trans = await uow.BeginTransactionAsync())
+    {
+        await uow.Entities.AddRangeAsync(entities);
+        await trans.CommitTransactionAsync();
+    }
+    
+    logger.LogInformation("[Import] Data import completed");
+}
+----
+
+
+Alte Version ohne Transactions:
+
+[source,csharp]
+----
 using (var scope = host.Services.CreateScope())
 {
     var uow = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
@@ -873,18 +929,6 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 
 [source,csharp]
 ----
-using System.Net;
-using System.Net.Http.Json;
-using Core.Contracts;
-using Core.Entities;
-using FluentAssertions;
-using Microsoft.EntityFrameworkCore.ChangeTracking;
-using Microsoft.Extensions.Logging;
-using NSubstitute;
-using WebAPI.Endpoints;
-
-namespace WebAPI.Tests.Endpoints;
-
 public class EntityEndpointsTests : IClassFixture<CustomWebApplicationFactory>
 {
     private readonly HttpClient         _client;
@@ -937,121 +981,6 @@ public class EntityEndpointsTests : IClassFixture<CustomWebApplicationFactory>
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         result!.Id.Should().Be(1);
         _logger.LogInformation("[Test] GetEntity assertions passed");
-    }
-
-    [Fact]
-    public async Task GetEntity_NonExistingId_Returns404()
-    {
-        _entityRepo.GetByIdAsync(99).ReturnsForAnyArgs((EntityName?)null);
-        _logger.LogInformation("[Test] GetEntity_NonExistingId setup: null mocked");
-
-        var response = await _client.GetAsync("/api/entity/99");
-        _logger.LogInformation("[Test] GetEntity_NonExistingId response: {StatusCode}", response.StatusCode);
-
-        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
-        _logger.LogInformation("[Test] GetEntity_NonExistingId assertions passed");
-    }
-
-    [Fact]
-    public async Task PostEntity_ValidDto_ReturnsCreated()
-    {
-        var dto     = new EntityDto(0, "Alpha", "TypeA");
-        var created = new EntityName { Id = 1, Name = "Alpha", Type = "TypeA" };
-        _logger.LogInformation("[Test] PostEntity setup: dto and entity mocked");
-
-        _entityRepo.AddAsync(Arg.Any<EntityName>())
-            .Returns(Task.FromResult<EntityEntry<EntityName>>(null!));
-        _entityRepo.GetByIdAsync(Arg.Any<int>()).ReturnsForAnyArgs(created);
-
-        var response = await _client.PostAsJsonAsync("/api/entity", dto);
-        _logger.LogInformation("[Test] PostEntity response: {StatusCode}", response.StatusCode);
-
-        response.StatusCode.Should().Be(HttpStatusCode.Created);
-        _logger.LogInformation("[Test] PostEntity assertions passed");
-    }
-
-    [Fact]
-    public async Task PostEntity_NonZeroId_ReturnsBadRequest()
-    {
-        var dto = new EntityDto(5, "Alpha", "TypeA");
-        _logger.LogInformation("[Test] PostEntity_NonZeroId setup: dto with id={Id}", dto.Id);
-
-        var response = await _client.PostAsJsonAsync("/api/entity", dto);
-        _logger.LogInformation("[Test] PostEntity_NonZeroId response: {StatusCode}", response.StatusCode);
-
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        _logger.LogInformation("[Test] PostEntity_NonZeroId assertions passed");
-    }
-
-    [Fact]
-    public async Task PutEntity_ValidUpdate_ReturnsNoContent()
-    {
-        var existing = new EntityName { Id = 1, Name = "Old", Type = "TypeA" };
-        var dto      = new EntityDto(1, "Alpha", "TypeA");
-        _entityRepo.GetByIdAsync(1).ReturnsForAnyArgs(existing);
-        _logger.LogInformation("[Test] PutEntity setup: existing entity mocked");
-
-        var response = await _client.PutAsJsonAsync("/api/entity/1", dto);
-        _logger.LogInformation("[Test] PutEntity response: {StatusCode}", response.StatusCode);
-
-        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
-        _logger.LogInformation("[Test] PutEntity assertions passed");
-    }
-
-    [Fact]
-    public async Task PutEntity_IdMismatch_ReturnsBadRequest()
-    {
-        var dto = new EntityDto(2, "Alpha", "TypeA");
-        _logger.LogInformation("[Test] PutEntity_IdMismatch setup: URL id=1, body id={BodyId}", dto.Id);
-
-        var response = await _client.PutAsJsonAsync("/api/entity/1", dto);
-        _logger.LogInformation("[Test] PutEntity_IdMismatch response: {StatusCode}", response.StatusCode);
-
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        _logger.LogInformation("[Test] PutEntity_IdMismatch assertions passed");
-    }
-
-    [Fact]
-    public async Task PutEntity_NotFound_Returns404()
-    {
-        var dto = new EntityDto(99, "Alpha", "TypeA");
-        _entityRepo.GetByIdAsync(99).ReturnsForAnyArgs((EntityName?)null);
-        _logger.LogInformation("[Test] PutEntity_NotFound setup: null mocked");
-
-        var response = await _client.PutAsJsonAsync("/api/entity/99", dto);
-        _logger.LogInformation("[Test] PutEntity_NotFound response: {StatusCode}", response.StatusCode);
-
-        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
-        _logger.LogInformation("[Test] PutEntity_NotFound assertions passed");
-    }
-
-    [Fact]
-    public async Task DeleteEntity_Existing_ReturnsNoContent()
-    {
-        var existing = new EntityName { Id = 1, Name = "Alpha" };
-        _entityRepo.GetByIdAsync(1).ReturnsForAnyArgs(existing);
-        _logger.LogInformation("[Test] DeleteEntity setup: existing entity mocked");
-
-        var response = await _client.DeleteAsync("/api/entity/1");
-        _logger.LogInformation("[Test] DeleteEntity response: {StatusCode}", response.StatusCode);
-
-        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
-        _entityRepo.Received(1).Remove(existing);
-        await _uow.Received(1).SaveChangesAsync();
-        _logger.LogInformation("[Test] DeleteEntity assertions passed");
-    }
-
-    [Fact]
-    public async Task DeleteEntity_NotFound_Returns404()
-    {
-        _entityRepo.GetByIdAsync(99).ReturnsForAnyArgs((EntityName?)null);
-        _logger.LogInformation("[Test] DeleteEntity_NotFound setup: null mocked");
-
-        var response = await _client.DeleteAsync("/api/entity/99");
-        _logger.LogInformation("[Test] DeleteEntity_NotFound response: {StatusCode}", response.StatusCode);
-
-        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
-        _logger.LogInformation("[Test] DeleteEntity_NotFound assertions passed");
     }
 }
 ----
