@@ -65,7 +65,7 @@ Import/Console
 }
 ----
 
-=== Verwendung per Dependency Injection
+=== Verwendung
 
 [source,csharp]
 ----
@@ -185,16 +185,6 @@ Update-Database -Project Persistence -StartupProject Import
 ----
 
 
-Sqlite Installation:
-
-[source,powershell]
-----
-dotnet add package Microsoft.EntityFrameworkCore.Sqlite
-# Die Design-Tools für Migrationen (Add-Migration, etc.)
-5 dotnet add package Microsoft.EntityFrameworkCore.Design
-----
-
-
 == Repository + UnitOfWork Muster
 
 === Contracts in Core
@@ -227,12 +217,13 @@ public class UnitOfWork : BaseUnitOfWork, IUnitOfWork
 {
     private readonly ILogger<UnitOfWork> _logger;
 
-    public UnitOfWork(ApplicationDbContext dbContext, ILogger<UnitOfWork> logger) : base(dbContext)
+    public UnitOfWork(ApplicationDbContext dbContext, ILogger<UnitOfWork> logger,
+        ILoggerFactory loggerFactory) : base(dbContext)
     {
         _logger = logger;
         _logger.LogInformation("[UnitOfWork] Initializing repositories");
-        Entities = new EntityRepository(dbContext);
-        Others = new AnotherRepository(dbContext);
+        Entities = new EntityRepository(dbContext, loggerFactory.CreateLogger<EntityRepository>());
+        Others = new AnotherRepository(dbContext, loggerFactory.CreateLogger<AnotherRepository>());
     }
 
     public IEntityRepository Entities { get; }
