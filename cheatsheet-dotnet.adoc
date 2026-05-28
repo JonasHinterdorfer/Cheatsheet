@@ -72,12 +72,14 @@ Import/Console
 public class EntityRepository : GenericRepository<EntityName>, IEntityRepository
 {
     private readonly ILogger<EntityRepository> _logger;
+    private readonly ApplicationDbContext _dbContext;
 
     public EntityRepository(
         ApplicationDbContext dbContext,
         ILogger<EntityRepository> logger) : base(dbContext)
     {
         _logger = logger;
+        _dbContext = dbContext;
     }
 
     public async Task<IList<EntityOverview>> GetOverviewAsync(string? filter)
