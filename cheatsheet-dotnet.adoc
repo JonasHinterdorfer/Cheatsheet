@@ -231,6 +231,27 @@ public class UnitOfWork : BaseUnitOfWork, IUnitOfWork
 }
 ----
 
+=== UnitOfWork mit Dependency Injection
+
+[source,csharp]
+----
+public class UnitOfWork : BaseUnitOfWork, IUnitOfWork
+{
+    public UnitOfWork(
+        ApplicationDbContext context,
+        IEntityRepository entityRepository,
+        IAnotherRepository anotherRepository)
+        : base(dBContext)
+    {
+        Entities = entityRepository;
+        Anothers = anotherRepository;
+    }
+
+    public IEntityRepository Entities { get; }
+    public IAnotherRepository Anothers { get; }
+} 
+----
+
 == ReadModels / Overview-Objekte
 
 Nutze eigene Typen für Auswertungen statt Entities 1:1 nach außen zu geben.
@@ -574,6 +595,7 @@ builder.Services.AddCors(options =>
 });
 
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+builder.Services.AddAssemblyIncludingInternals(name => name.EndsWith("Repository"), ServiceLifetime.Transient, typeof(ApplicationDbContext).Assembly);
 // Falls UnitOfWork weitere Services benötigt, diese hier ebenfalls registrieren (z.B. IAnotherRepository)
 
 builder.Services.AddLogging(loggingBuilder =>
@@ -925,7 +947,9 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 }
 ----
 
-==== Endpoint Testklasse
+==== Endpoint Tests
+
+===== Klassendefinition (`EntityEndpointsTests.cs`)
 
 [source,csharp]
 ----
@@ -945,7 +969,15 @@ public class EntityEndpointsTests : IClassFixture<CustomWebApplicationFactory>
         _uow.Entities.Returns(_entityRepo);
         _logger.LogInformation("[EndpointTest] Setup completed, mock repository initialized");
     }
+}
+----
 
+===== GET Tests (`EntityEndpointsTests.Get.cs`)
+
+[source,csharp]
+----
+public partial class EntityEndpointsTests
+{
     [Fact]
     public async Task GetEntities_ReturnsOkWithList()
     {
@@ -981,6 +1013,80 @@ public class EntityEndpointsTests : IClassFixture<CustomWebApplicationFactory>
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         result!.Id.Should().Be(1);
         _logger.LogInformation("[Test] GetEntity assertions passed");
+    }
+}
+----
+
+===== POST Tests (`EntityEndpointsTests.Post.cs`)
+
+[source,csharp]
+----
+public partial class EntityEndpointsTests
+{
+    [Fact]
+    public async Task PostEntity_ValidDto_ReturnsCreated()
+    {
+        var dto     = new EntityDto(0, "Gamma");
+        var created = new EntityName { Id = 1, Name = "Gamma" };
+
+        _entityRepo.AddAsync(Arg.Any<EntityName>())
+            .Returns(Task.FromResult<EntityEntry<EntityName>>(null!));
+        _entityRepo.GetByIdAsync(Arg.Any<int>()).ReturnsForAnyArgs(created);
+        _logger.LogInformation("[Test] PostEntity setup: dto and created entity mocked");
+
+        var response = await _client.PostAsJsonAsync("/api/entity", dto);
+        _logger.LogInformation("[Test] PostEntity response: {StatusCode}", response.StatusCode);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+    }
+}
+----
+
+===== PUT Tests (`EntityEndpointsTests.Put.cs`)
+
+[source,csharp]
+----
+public partial class EntityEndpointsTests
+{
+    [Fact]
+    public async Task PutEntity_ValidUpdate_ReturnsNoContent()
+    {
+        var existing = new EntityName { Id = 1, Name = "Alpha" };
+        var dto      = new EntityDto(1, "AlphaUpdated");
+        var trans    = Substitute.For<ITransaction>();
+
+        _entityRepo.GetByIdAsync(1).ReturnsForAnyArgs(existing);
+        _uow.BeginTransactionAsync().Returns(trans);
+        _logger.LogInformation("[Test] PutEntity setup: existing entity and transaction mocked");
+
+        var response = await _client.PutAsJsonAsync("/api/entity/1", dto);
+        _logger.LogInformation("[Test] PutEntity response: {StatusCode}", response.StatusCode);
+
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        await trans.Received(1).CommitTransactionAsync();
+    }
+}
+----
+
+===== DELETE Tests (`EntityEndpointsTests.Delete.cs`)
+
+[source,csharp]
+----
+public partial class EntityEndpointsTests
+{
+    [Fact]
+    public async Task DeleteEntity_Existing_ReturnsNoContent()
+    {
+        var existing = new EntityName { Id = 1, Name = "Alpha" };
+        _entityRepo.GetByIdAsync(1).ReturnsForAnyArgs(existing);
+        _logger.LogInformation("[Test] DeleteEntity setup: existing entity mocked");
+
+        var response = await _client.DeleteAsync("/api/entity/1");
+        _logger.LogInformation("[Test] DeleteEntity response: {StatusCode}", response.StatusCode);
+
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        _entityRepo.Received(1).Remove(existing);
+        await _uow.Received(1).SaveChangesAsync();
     }
 }
 ----
